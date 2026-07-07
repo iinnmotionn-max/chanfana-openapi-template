@@ -11,6 +11,8 @@ import { curriculumStatus } from "../engine/training";
 import { tokenOverview } from "../engine/token";
 import { suiChainStatus } from "../engine/sui";
 import { shieldOverview } from "../engine/shield";
+import { walletList } from "../engine/wallet";
+import { defiOverview } from "../engine/defi";
 
 const MAX_CURVE_POINTS = 150;
 
@@ -29,7 +31,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 	public async handle(c: AppContext) {
 		const db = c.env.DB;
 
-		const [agents, bots, closedTrades, openTrades, reports, goals, market, strategies, realms, checks, wellness, lumi, quests, perf, risk, markets, training, aether, shield] = await Promise.all([
+		const [agents, bots, closedTrades, openTrades, reports, goals, market, strategies, realms, checks, wellness, lumi, quests, perf, risk, markets, training, aether, shield, wallets, defi] = await Promise.all([
 			db.prepare("SELECT id, name, role, dna, status FROM agents ORDER BY id").all(),
 			db
 				.prepare(
@@ -73,6 +75,8 @@ export class AnalyticsOverview extends OpenAPIRoute {
 			curriculumStatus(db),
 			tokenOverview(db),
 			shieldOverview(db, c.env),
+			walletList(db),
+			defiOverview(db),
 		]);
 
 		const botRows = bots.results.map(decorateBot);
@@ -123,6 +127,8 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				training,
 				aether: { ...aether, chainLink: suiChainStatus(c.env) },
 				shield,
+				wallets,
+				defi,
 			},
 		};
 	}

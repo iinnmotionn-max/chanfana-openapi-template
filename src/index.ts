@@ -29,6 +29,17 @@ import {
 	AetherTransfer,
 } from "./endpoints/aether";
 import { ShieldKyc, ShieldScan, ShieldStatus } from "./endpoints/shield";
+import { WalletCreate, WalletGet, WalletLink, WalletList, WalletSend } from "./endpoints/wallet";
+import {
+	DefiAddLiquidity,
+	DefiBorrow,
+	DefiOverview,
+	DefiRemoveLiquidity,
+	DefiRepay,
+	DefiSwap,
+	DefiVaultDeposit,
+	DefiVaultWithdraw,
+} from "./endpoints/defi";
 import { dashHtml } from "./dash";
 
 // Start a Hono app
@@ -145,6 +156,23 @@ openapi.post("/aether/transfer", AetherTransfer);
 openapi.post("/aether/reward", AetherReward);
 openapi.post("/aether/spend", AetherSpend);
 openapi.post("/aether/audit", AetherAudit);
+
+// Wallet — an in-app web3 wallet over the AETHER ledger
+openapi.get("/wallet", WalletList);
+openapi.post("/wallet", WalletCreate);
+openapi.get("/wallet/:ref", WalletGet);
+openapi.post("/wallet/send", WalletSend);
+openapi.post("/wallet/link", WalletLink);
+
+// DeFi — AETHER liquidity pool, vaults, lending (under the Aether realm)
+openapi.get("/defi", DefiOverview);
+openapi.post("/defi/pool/add", DefiAddLiquidity);
+openapi.post("/defi/pool/remove", DefiRemoveLiquidity);
+openapi.post("/defi/swap", DefiSwap);
+openapi.post("/defi/vault/deposit", DefiVaultDeposit);
+openapi.post("/defi/vault/withdraw", DefiVaultWithdraw);
+openapi.post("/defi/borrow", DefiBorrow);
+openapi.post("/defi/repay", DefiRepay);
 
 // Shield — web3 security, red-team, decentralization, privacy-first KYC
 openapi.get("/shield", ShieldStatus);

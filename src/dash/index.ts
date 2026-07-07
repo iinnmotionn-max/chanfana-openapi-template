@@ -205,7 +205,37 @@ export const dashHtml = `<!doctype html>
   .lesson.learned { color: var(--ink-2); }
   .lesson.learned .lp { color: var(--good); }
   .lesson .lt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* WALLET */
+  #wallet-card { margin-bottom: 16px; position: relative; overflow: hidden; }
+  .wallet-card::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(520px 180px at 85% -30%, rgba(144,133,233,0.12), transparent 70%); }
+  .wallet-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; }
+  @media (max-width: 820px) { .wallet-grid { grid-template-columns: 1fr; } }
+  .wallet-hero .bal { font-size: 34px; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+  .wallet-hero .bal .sym { font-size: 15px; color: var(--series-4); font-weight: 650; margin-left: 6px; }
+  .wallet-hero .who { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .wallet-addr { display: flex; align-items: center; gap: 8px; margin-top: 12px; font: 12px ui-monospace, Menlo, monospace;
+    background: var(--page); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; color: var(--ink-2); }
+  .wallet-addr .lab { color: var(--muted); }
+  .wallet-addr .val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wallet-sui { font-size: 11px; margin-top: 8px; }
+  .wallet-sui.on { color: var(--good); } .wallet-sui.off { color: var(--muted); }
+  .send-form { display: flex; flex-direction: column; gap: 8px; }
+  .send-form label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .send-form input, .send-form select {
+    background: var(--page); color: var(--ink); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; }
+  .send-form input:focus, .send-form select:focus { outline: none; border-color: var(--series-1); }
+  .send-row { display: flex; gap: 8px; }
+  .send-row > * { flex: 1; }
+  .wallet-list { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 16px; }
+  .wl-item { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 0; cursor: pointer; border-bottom: 1px solid var(--grid); }
+  .wl-item:hover { color: var(--series-1); }
+  .wl-item.sel { color: var(--series-4); }
+  .wl-item .wl-o { color: var(--ink); }
+  .wl-item .wl-b { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--ink-2); }
   #aether-card { margin-bottom: 16px; }
+  #defi-card { margin-bottom: 16px; }
+  .defi-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .aeth-top { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
   .aeth-hero .n { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
   .aeth-hero .n .sym { font-size: 15px; color: var(--series-4); font-weight: 650; margin-left: 6px; }
@@ -339,9 +369,19 @@ export const dashHtml = `<!doctype html>
   <div id="training-panel"></div>
 </div>
 
+<div class="card wallet-card" id="wallet-card">
+  <h2>WALLET — your AETHER, self-custody &amp; on Sui</h2>
+  <div id="wallet-panel"></div>
+</div>
+
 <div class="card" id="aether-card">
   <h2>AETHER TOKEN — the colony's AI-credit currency</h2>
   <div id="aether-panel"></div>
+</div>
+
+<div class="card" id="defi-card">
+  <h2>DEFI — AETHER liquidity · pool · vaults · lending</h2>
+  <div id="defi-panel"></div>
 </div>
 
 <div class="card shield-card" id="shield-card">
@@ -474,7 +514,93 @@ function render(d) {
   renderTraining(d.training || null);
   renderAether(d.aether || null);
   renderShield(d.shield || null);
+  renderWallet(d.wallets || []);
+  renderDefi(d.defi || null);
   firstPaint = false;
+}
+
+function renderDefi(d) {
+  const el = $("defi-panel");
+  if (!d || !d.pools) { el.innerHTML = '<div class="empty">Liquidity loading…</div>'; return; }
+  const pool = d.pools[0] || {};
+  const price = Number(pool.price) || 0, apr = (Number(pool.apr) || 0) * 100;
+  const tiles =
+    tile("Pool TVL", fmt(d.tvlAether || 0, 0) + " Æ", (pool.name || "AETHER/SUI")) +
+    tile("Price", price ? fmt(price, 4) : "—", "quote / AETHER") +
+    tile("Pool APR", apr.toFixed(2) + "%", "from " + fmt(pool.volume || 0, 0) + " volume") +
+    tile("Reserves", fmt(pool.reserve_aether || 0, 0) + " Æ", fmt(pool.reserve_quote || 0, 0) + " quote") +
+    tile("LP supply", fmt(pool.lp_supply || 0, 0), "liquidity tokens");
+  const vaults = (d.vaults || []);
+  const loans = (d.loans || []);
+  const defiActs = [
+    { id: "d-seed", label: "Seed 10k/10k", act: "/defi/pool/add", body: { owner: "creator", aether: 10000, quote: 10000 } },
+    { id: "d-swap", label: "Swap 500 Æ", act: "/defi/swap", body: { owner: "creator", direction: "aether_in", amountIn: 500 } },
+    { id: "d-vault", label: "Vault +5k", act: "/defi/vault/deposit", body: { owner: "creator", amount: 5000 } },
+  ];
+  el.innerHTML =
+    '<div class="tiles" style="margin-bottom:12px">' + tiles + '</div>' +
+    '<div class="defi-actions">' + defiActs.map(a => '<button id="' + a.id + '">' + a.label + '</button>').join("") + '</div>' +
+    '<div class="aeth-cols" style="margin-top:12px">' +
+      '<div><h3>Vaults</h3>' + (vaults.length ? vaults.map(v =>
+        '<div class="aeth-tx">' + esc(v.owner) + ' <span class="k">' + ((Number(v.apr_bps) || 0) / 100).toFixed(1) + '% APR</span><span class="amt">' + fmt(v.principal || 0, 0) + ' Æ</span></div>'
+      ).join("") : '<div class="empty">No vault deposits yet.</div>') + '</div>' +
+      '<div><h3>Loans</h3>' + (loans.length ? loans.map(l =>
+        '<div class="aeth-tx">#' + l.id + ' <span class="k">' + fmt(l.collateral_aether || 0, 0) + ' Æ collateral</span><span class="amt">' + fmt(l.principal_quote || 0, 0) + ' borrowed</span></div>'
+      ).join("") : '<div class="empty">No open loans.</div>') + '</div>' +
+    '</div>';
+  defiActs.forEach(a => { const btn = $(a.id); if (btn) btn.onclick = (e) => act(e.target, a.act, a.body); });
+}
+
+let activeWallet = null;
+function shortAddr(a) { a = String(a || ""); return a.length > 18 ? a.slice(0, 10) + "…" + a.slice(-6) : a; }
+function renderWallet(wallets) {
+  const el = $("wallet-panel");
+  if (!wallets.length) { el.innerHTML = '<div class="empty">No wallets yet.</div>'; return; }
+  if (!activeWallet || !wallets.find(w => w.owner === activeWallet)) {
+    activeWallet = (wallets.find(w => w.owner === "creator") || wallets[0]).owner;
+  }
+  const w = wallets.find(x => x.owner === activeWallet) || wallets[0];
+  const linked = w.sui_address && w.sui_address.length > 0;
+
+  const opts = wallets.map(x => '<option value="' + esc(x.owner) + '"' + (x.owner === activeWallet ? " selected" : "") + '>' + esc(x.owner) + '</option>').join("");
+  el.innerHTML =
+    '<div class="wallet-grid">' +
+      '<div class="wallet-hero">' +
+        '<div class="bal">' + fmt(w.balance, 0) + '<span class="sym">AETHER</span></div>' +
+        '<div class="who">' + esc(w.owner) + ' · ' + esc(w.kind) + '</div>' +
+        '<div class="wallet-addr"><span class="lab">addr</span><span class="val" title="' + esc(w.address) + '">' + esc(w.address) + '</span></div>' +
+        '<div class="wallet-sui ' + (linked ? "on" : "off") + '">' + (linked ? "● Sui self-custody: " + esc(shortAddr(w.sui_address)) : "○ link your Sui address for self-custody →") + '</div>' +
+      '</div>' +
+      '<div class="send-form">' +
+        '<label>Send AETHER from</label>' +
+        '<select id="w-from">' + opts + '</select>' +
+        '<label>To (wallet or 0x address)</label>' +
+        '<input id="w-to" type="text" placeholder="owner or 0x…" spellcheck="false">' +
+        '<div class="send-row"><input id="w-amt" type="number" min="0" placeholder="amount"><button id="w-send">Send</button></div>' +
+        '<div class="send-row"><button id="w-new">New wallet</button><button id="w-link">Link Sui addr</button></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="wallet-list">' + wallets.map(x =>
+      '<div class="wl-item ' + (x.owner === activeWallet ? "sel" : "") + '" data-o="' + esc(x.owner) + '">' +
+      '<span class="wl-o">' + esc(x.owner) + '</span><span class="wl-b">' + fmt(x.balance, 0) + '</span></div>'
+    ).join("") + '</div>';
+
+  el.querySelectorAll(".wl-item").forEach(it => { it.onclick = () => { activeWallet = it.dataset.o; renderWallet(wallets); }; });
+  $("w-from").onchange = (e) => { activeWallet = e.target.value; };
+  $("w-send").onclick = async (e) => {
+    const from = $("w-from").value, to = $("w-to").value.trim(), amount = Number($("w-amt").value);
+    if (!to || !amount) { cmdLog && cmdLog("send needs a recipient and amount", "err"); return; }
+    await act(e.target, "/wallet/send", { from: from, to: to, amount: amount });
+    $("w-to").value = ""; $("w-amt").value = "";
+  };
+  $("w-new").onclick = async (e) => {
+    const label = prompt("Wallet label (optional):") || undefined;
+    await act(e.target, "/wallet", label ? { label: label } : {});
+  };
+  $("w-link").onclick = async (e) => {
+    const suiAddress = prompt("Your Sui address (0x + 64 hex):");
+    if (suiAddress) await act(e.target, "/wallet/link", { ref: activeWallet, suiAddress: suiAddress });
+  };
 }
 
 const DIM_COLOR = { contract: "var(--series-1)", custody: "var(--series-2)", privacy: "var(--series-3)", decentralization: "var(--series-4)", redteam: "var(--critical)" };
@@ -965,6 +1091,8 @@ const CMD_HELP = [
   "aether send <from> <to> <amount> — transfer AETHER credits",
   "shield — run a red-team security scan (posture + findings)",
   "kyc <subject> <basic|verified|institutional> <hash> — record a privacy-first attestation",
+  "wallet [ref] — show a wallet (balance, address, Sui link)",
+  "wallet new [label] — create a wallet · wallet link <ref> <0xSui> — link self-custody",
 ];
 
 async function api(method, path, body) {
@@ -1083,6 +1211,15 @@ async function execCommand(text) {
       if (!subject || !level || !hash) throw new Error("usage: kyc <subject> <basic|verified|institutional> <hash>");
       const r = await api("POST", "/shield/kyc", { subject: subject, level: level, attestationHash: hash });
       return "attestation #" + r.id + " recorded (" + r.level + ", " + r.method + ") — hash only, no PII";
+    }
+    case "wallet": {
+      const sub = (parts[1] || "").toLowerCase();
+      if (sub === "new") { const r = await api("POST", "/wallet", parts[2] ? { label: parts.slice(2).join(" ") } : {}); return "created " + r.owner + " · " + r.address; }
+      if (sub === "link") { if (!parts[2] || !parts[3]) throw new Error("usage: wallet link <ref> <0xSui>"); const r = await api("POST", "/wallet/link", { ref: parts[2], suiAddress: parts[3] }); return r.owner + " linked to " + r.sui_address; }
+      if (sub === "send") { if (!parts[2] || !parts[3] || !parts[4]) throw new Error("usage: wallet send <from> <to> <amount>"); const r = await api("POST", "/wallet/send", { from: parts[2], to: parts[3], amount: Number(parts[4]) }); return "sent " + fmt(r.amount, 0) + " AETHER"; }
+      const ref = parts[1] || activeWallet || "creator";
+      const w = await api("GET", "/wallet/" + encodeURIComponent(ref));
+      return w.owner + " · " + fmt(w.balance, 0) + " AETHER\\n  addr " + w.address + (w.sui_address ? "\\n  sui  " + w.sui_address : " · no Sui link");
     }
     case "": return null;
     default: throw new Error('unknown signal "' + cmd + '" — type help');
