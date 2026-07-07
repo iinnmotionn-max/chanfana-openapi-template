@@ -40,6 +40,16 @@ import {
 	DefiVaultDeposit,
 	DefiVaultWithdraw,
 } from "./endpoints/defi";
+import {
+	GrowthCampaign,
+	GrowthDraft,
+	GrowthLead,
+	GrowthLeads,
+	GrowthOverview,
+	GrowthPostStatus,
+	GrowthPosts,
+	GrowthScout,
+} from "./endpoints/growth";
 import { dashHtml } from "./dash";
 
 // Start a Hono app
@@ -178,6 +188,16 @@ openapi.post("/defi/repay", DefiRepay);
 openapi.get("/shield", ShieldStatus);
 openapi.post("/shield/scan", ShieldScan);
 openapi.post("/shield/kyc", ShieldKyc);
+
+// Growth — PR, content drafting, campaigns, and lead-gen
+openapi.get("/growth", GrowthOverview);
+openapi.post("/growth/post", GrowthDraft);
+openapi.patch("/growth/post/:id", GrowthPostStatus);
+openapi.get("/growth/posts", GrowthPosts);
+openapi.post("/growth/campaign", GrowthCampaign);
+openapi.post("/growth/lead", GrowthLead);
+openapi.get("/growth/leads", GrowthLeads);
+openapi.post("/growth/scout", GrowthScout);
 
 // Analytics (feeds the cockpit)
 openapi.get("/analytics/overview", AnalyticsOverview);

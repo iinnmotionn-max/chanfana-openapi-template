@@ -236,6 +236,21 @@ export const dashHtml = `<!doctype html>
   #aether-card { margin-bottom: 16px; }
   #defi-card { margin-bottom: 16px; }
   .defi-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  #growth-card { margin-bottom: 16px; }
+  .growth-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 14px; }
+  @media (max-width: 820px) { .growth-cols { grid-template-columns: 1fr; } }
+  .growth-cols h3 { font-size: 11px; letter-spacing: 0.6px; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+  .funnel { display: flex; flex-direction: column; gap: 6px; }
+  .gf-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+  .gf-l { width: 74px; color: var(--ink-2); }
+  .gf-track { flex: 1; height: 8px; background: var(--grid); border-radius: 5px; overflow: hidden; }
+  .gf-bar { height: 100%; border-radius: 5px; transition: width 0.7s cubic-bezier(0.22,1,0.36,1); }
+  .gf-v { width: 28px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .gpost { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 5px 0; border-bottom: 1px solid var(--grid); }
+  .gpost:last-child { border-bottom: none; }
+  .gp-plat { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--series-4); width: 56px; flex: none; }
+  .gp-body { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .gp-body .mutedtxt { color: var(--muted); }
   .aeth-top { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
   .aeth-hero .n { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
   .aeth-hero .n .sym { font-size: 15px; color: var(--series-4); font-weight: 650; margin-left: 6px; }
@@ -384,6 +399,11 @@ export const dashHtml = `<!doctype html>
   <div id="defi-panel"></div>
 </div>
 
+<div class="card" id="growth-card">
+  <h2>GROWTH — PR · content · campaigns · lead-gen</h2>
+  <div id="growth-panel"></div>
+</div>
+
 <div class="card shield-card" id="shield-card">
   <h2>SHIELD — web3 security · red-team · decentralization · privacy-first KYC</h2>
   <div id="shield-panel"></div>
@@ -516,7 +536,59 @@ function render(d) {
   renderShield(d.shield || null);
   renderWallet(d.wallets || []);
   renderDefi(d.defi || null);
+  renderGrowth(d.growth || null);
   firstPaint = false;
+}
+
+function renderGrowth(g) {
+  const el = $("growth-panel");
+  if (!g) { el.innerHTML = '<div class="empty">Growth loading…</div>'; return; }
+  const posts = g.posts || { total: 0, byStatus: {}, recent: [] };
+  const leads = g.leads || { total: 0, byStatus: {}, byKind: {}, pipelineValue: 0, recent: [] };
+  const fn = g.funnel || { leads: 0, contacted: 0, won: 0 };
+  const bs = posts.byStatus || {};
+
+  const tiles =
+    tile("Pipeline", fmt(leads.pipelineValue || 0, 0), (leads.total || 0) + " leads tracked") +
+    tile("Drafts", String(bs.draft || 0), "ready to review") +
+    tile("Queued", String(bs.queued || 0), "awaiting publish") +
+    tile("Published", String(bs.published || 0), "local — connect accounts") +
+    tile("Campaigns", String((g.campaigns || []).length), "active");
+
+  const funnelMax = Math.max(1, fn.leads);
+  const funnelHtml = [["Leads", fn.leads, "var(--series-1)"], ["Contacted", fn.contacted, "var(--series-3)"], ["Won", fn.won, "var(--good)"]].map(f =>
+    '<div class="gf-row"><span class="gf-l">' + f[0] + '</span>' +
+    '<div class="gf-track"><div class="gf-bar" style="width:' + Math.round((Number(f[1]) / funnelMax) * 100) + '%;background:' + f[2] + '"></div></div>' +
+    '<span class="gf-v">' + f[1] + '</span></div>'
+  ).join("");
+
+  const drafts = (posts.recent || []).map(p =>
+    '<div class="gpost"><span class="gp-plat">' + esc(p.platform) + '</span>' +
+    '<span class="gp-body">' + esc((p.title || p.body || "").slice(0, 90)) + '</span>' +
+    '<span class="pill ' + (p.status === "published" ? "active" : "") + '">' + esc(p.status) + '</span></div>'
+  ).join("");
+
+  const leadRows = (leads.recent || []).map(l =>
+    '<div class="gpost"><span class="gp-plat">' + esc(l.kind) + '</span>' +
+    '<span class="gp-body">' + esc(l.name) + (l.source ? ' · <span class="mutedtxt">' + esc(l.source) + '</span>' : "") + '</span>' +
+    '<span class="pill">' + esc(l.status) + '</span></div>'
+  ).join("");
+
+  const growthActs = [
+    { id: "g-x", label: "Draft X post", act: "/growth/post", body: { platform: "x", topic: "Lumi + AETHER launch" } },
+    { id: "g-li", label: "Draft LinkedIn", act: "/growth/post", body: { platform: "linkedin", topic: "Lumi + AETHER launch" } },
+    { id: "g-scout", label: "Scout leads", act: "/growth/scout", body: {} },
+  ];
+
+  el.innerHTML =
+    '<div class="tiles" style="margin-bottom:12px">' + tiles + '</div>' +
+    '<div class="defi-actions">' + growthActs.map(a => '<button id="' + a.id + '">' + a.label + '</button>').join("") + '</div>' +
+    '<div class="growth-cols">' +
+      '<div><h3>Funnel</h3><div class="funnel">' + funnelHtml + '</div>' +
+        '<h3 style="margin-top:16px">Content queue</h3>' + (drafts || '<div class="empty">No drafts yet — draft a post.</div>') + '</div>' +
+      '<div><h3>Leads &amp; opportunities</h3>' + (leadRows || '<div class="empty">No leads yet — scout for opportunities.</div>') + '</div>' +
+    '</div>';
+  growthActs.forEach(a => { const btn = $(a.id); if (btn) btn.onclick = (e) => act(e.target, a.act, a.body); });
 }
 
 function renderDefi(d) {
@@ -1093,6 +1165,8 @@ const CMD_HELP = [
   "kyc <subject> <basic|verified|institutional> <hash> — record a privacy-first attestation",
   "wallet [ref] — show a wallet (balance, address, Sui link)",
   "wallet new [label] — create a wallet · wallet link <ref> <0xSui> — link self-custody",
+  "post <x|linkedin|instagram|blog> [topic] — draft marketing content",
+  "scout — hunt leads/partners/placements · growth — funnel & pipeline",
 ];
 
 async function api(method, path, body) {
@@ -1221,6 +1295,21 @@ async function execCommand(text) {
       const w = await api("GET", "/wallet/" + encodeURIComponent(ref));
       return w.owner + " · " + fmt(w.balance, 0) + " AETHER\\n  addr " + w.address + (w.sui_address ? "\\n  sui  " + w.sui_address : " · no Sui link");
     }
+    case "post": {
+      const platform = (parts[1] || "x").toLowerCase();
+      const topic = parts.slice(2).join(" ") || "Lumi + AETHER launch";
+      const r = await api("POST", "/growth/post", { platform: platform, topic: topic });
+      return "drafted " + platform + " post:\\n  " + (r.title || r.body || "").slice(0, 160) + "\\n  media: " + (r.media_prompt || "").slice(0, 120);
+    }
+    case "scout": {
+      const r = await api("POST", "/growth/scout", {});
+      return "scouted opportunities: " + (r.stored || 0) + " new lead(s) banked (" + (r.found || 0) + " found)";
+    }
+    case "growth": {
+      const g = await api("GET", "/growth");
+      return "funnel " + g.funnel.leads + " leads → " + g.funnel.contacted + " contacted → " + g.funnel.won + " won · pipeline " +
+        fmt(g.leads.pipelineValue, 0) + " · " + g.posts.total + " posts (" + (g.posts.byStatus.draft || 0) + " draft)";
+    }
     case "": return null;
     default: throw new Error('unknown signal "' + cmd + '" — type help');
   }
@@ -1253,7 +1342,7 @@ async function sendCommand() {
 }
 $("btn-cmd").onclick = sendCommand;
 $("cmd-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendCommand(); });
-$("cmd-chips").innerHTML = ["pulse", "advance 600", "learn", "train", "shield", "audit", "sweep", "aether", "help"]
+$("cmd-chips").innerHTML = ["pulse", "advance 600", "learn", "train", "shield", "post x", "scout", "aether", "help"]
   .map(c => '<button type="button" data-cmd="' + c + '">' + c + "</button>").join("");
 $("cmd-chips").querySelectorAll("button").forEach(b => {
   b.onclick = () => { $("cmd-input").value = b.dataset.cmd; sendCommand(); };
