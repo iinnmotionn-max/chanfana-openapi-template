@@ -29,7 +29,7 @@ import {
 	AetherTransfer,
 } from "./endpoints/aether";
 import { ShieldKyc, ShieldScan, ShieldStatus } from "./endpoints/shield";
-import { WalletCreate, WalletGet, WalletLink, WalletList, WalletSend } from "./endpoints/wallet";
+import { AetherWallet, WalletCreate, WalletGet, WalletLink, WalletList, WalletSend } from "./endpoints/wallet";
 import {
 	DefiAddLiquidity,
 	DefiBorrow,
@@ -178,6 +178,7 @@ openapi.post("/aether/audit", AetherAudit);
 
 // Wallet — an in-app web3 wallet over the AETHER ledger
 openapi.get("/wallet", WalletList);
+openapi.post("/wallet/aether", AetherWallet);
 openapi.post("/wallet", WalletCreate);
 openapi.get("/wallet/:ref", WalletGet);
 openapi.post("/wallet/send", WalletSend);

@@ -6,7 +6,7 @@
 import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
-import { createWallet, linkSui, sendAether, walletList, walletOverview } from "../engine/wallet";
+import { createWallet, ensureAetherWallet, linkSui, sendAether, walletList, walletOverview } from "../engine/wallet";
 
 export class WalletList extends OpenAPIRoute {
 	public schema = {
@@ -19,6 +19,21 @@ export class WalletList extends OpenAPIRoute {
 
 	public async handle(c: AppContext) {
 		return { success: true, result: await walletList(c.env.DB) };
+	}
+}
+
+export class AetherWallet extends OpenAPIRoute {
+	public schema = {
+		tags: ["Wallet"],
+		summary: "Aether mints (or returns) its own self-custody web3 wallet",
+		responses: {
+			"200": { description: "Aether's wallet address", ...contentJson({ success: z.boolean(), result: z.any() }) },
+		},
+	};
+
+	public async handle(c: AppContext) {
+		const w = await ensureAetherWallet(c.env.DB);
+		return { success: true, result: w };
 	}
 }
 

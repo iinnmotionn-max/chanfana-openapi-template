@@ -236,6 +236,21 @@ export const dashHtml = `<!doctype html>
   #aether-card { margin-bottom: 16px; }
   #defi-card { margin-bottom: 16px; }
   .defi-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .defi-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 820px) { .defi-cols { grid-template-columns: 1fr; } }
+  .defi-cols h3 { font-size: 11px; letter-spacing: 0.6px; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+  .swap { background: var(--page); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+  .swap-dir { display: flex; gap: 6px; margin-bottom: 10px; }
+  .swap-dir button { flex: 1; font-size: 12px; padding: 6px 4px; }
+  .swap-dir button.sel { border-color: var(--series-1); color: var(--series-1); }
+  .swap-io { display: flex; align-items: center; gap: 8px; }
+  .swap-io input { flex: 1; min-width: 0; background: var(--surface); color: var(--ink); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font: inherit; }
+  .swap-arrow { color: var(--muted); }
+  .swap-out { flex: 1; font-size: 13px; color: var(--ink-2); text-align: right; }
+  .swap-out b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .swap-meta { font-size: 11px; color: var(--muted); margin: 8px 0 10px; }
+  .swap-meta b { color: var(--ink-2); }
+  #swap-go { width: 100%; border-color: var(--series-1); color: var(--series-1); font-weight: 600; }
   #growth-card { margin-bottom: 16px; }
   .growth-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 14px; }
   @media (max-width: 820px) { .growth-cols { grid-template-columns: 1fr; } }
@@ -634,24 +649,64 @@ function renderDefi(d) {
     tile("LP supply", fmt(pool.lp_supply || 0, 0), "liquidity tokens");
   const vaults = (d.vaults || []);
   const loans = (d.loans || []);
-  const defiActs = [
-    { id: "d-seed", label: "Seed 10k/10k", act: "/defi/pool/add", body: { owner: "creator", aether: 10000, quote: 10000 } },
-    { id: "d-swap", label: "Swap 500 Æ", act: "/defi/swap", body: { owner: "creator", direction: "aether_in", amountIn: 500 } },
-    { id: "d-vault", label: "Vault +5k", act: "/defi/vault/deposit", body: { owner: "creator", amount: 5000 } },
+  const ra = Number(pool.reserve_aether) || 0, rq = Number(pool.reserve_quote) || 0, fee = (Number(pool.fee_bps) || 30) / 10000;
+  const owner = activeWallet || "creator";
+  // Constant-product quote (client-side preview; the engine is authoritative).
+  function swapQuote(dir, amt) {
+    if (!(amt > 0) || ra <= 0 || rq <= 0) return 0;
+    const k = ra * rq, inAf = amt * (1 - fee);
+    return dir === "aether_in" ? rq - k / (ra + inAf) : ra - k / (rq + inAf);
+  }
+  const aIn = swapDir === "aether_in";
+
+  const swapWidget =
+    '<div class="swap">' +
+      '<div class="swap-dir">' +
+        '<button data-d="aether_in" class="' + (aIn ? "sel" : "") + '">AETHER → SUI</button>' +
+        '<button data-d="quote_in" class="' + (!aIn ? "sel" : "") + '">SUI → AETHER</button>' +
+      '</div>' +
+      '<div class="swap-io">' +
+        '<input id="swap-amt" type="number" min="0" placeholder="amount in ' + (aIn ? "AETHER" : "SUI") + '">' +
+        '<span class="swap-arrow">→</span>' +
+        '<div class="swap-out">≈ <b id="swap-quote">0</b> ' + (aIn ? "SUI" : "AETHER") + '</div>' +
+      '</div>' +
+      '<div class="swap-meta">wallet <b>' + esc(owner) + '</b> · price ' + (price ? fmt(price, 4) : "—") + ' · fee ' + (fee * 100).toFixed(2) + '%</div>' +
+      '<button id="swap-go">Swap</button>' +
+    '</div>';
+
+  const quickActs = [
+    { id: "d-seed", label: "Add 10k/10k liquidity", act: "/defi/pool/add", body: { owner: owner, aether: 10000, quote: 10000 } },
+    { id: "d-vault", label: "Vault +5k (8% APR)", act: "/defi/vault/deposit", body: { owner: owner, amount: 5000 } },
   ];
+
   el.innerHTML =
     '<div class="tiles" style="margin-bottom:12px">' + tiles + '</div>' +
-    '<div class="defi-actions">' + defiActs.map(a => '<button id="' + a.id + '">' + a.label + '</button>').join("") + '</div>' +
-    '<div class="aeth-cols" style="margin-top:12px">' +
+    '<div class="defi-cols">' +
+      '<div><h3>Swap</h3>' + (ra > 0 ? swapWidget : '<div class="empty">Pool empty — add liquidity first.</div>') + '</div>' +
       '<div><h3>Vaults</h3>' + (vaults.length ? vaults.map(v =>
         '<div class="aeth-tx">' + esc(v.owner) + ' <span class="k">' + ((Number(v.apr_bps) || 0) / 100).toFixed(1) + '% APR</span><span class="amt">' + fmt(v.principal || 0, 0) + ' Æ</span></div>'
-      ).join("") : '<div class="empty">No vault deposits yet.</div>') + '</div>' +
-      '<div><h3>Loans</h3>' + (loans.length ? loans.map(l =>
+      ).join("") : '<div class="empty">No vault deposits yet.</div>') +
+        '<h3 style="margin-top:14px">Loans</h3>' + (loans.length ? loans.map(l =>
         '<div class="aeth-tx">#' + l.id + ' <span class="k">' + fmt(l.collateral_aether || 0, 0) + ' Æ collateral</span><span class="amt">' + fmt(l.principal_quote || 0, 0) + ' borrowed</span></div>'
       ).join("") : '<div class="empty">No open loans.</div>') + '</div>' +
-    '</div>';
-  defiActs.forEach(a => { const btn = $(a.id); if (btn) btn.onclick = (e) => act(e.target, a.act, a.body); });
+    '</div>' +
+    '<div class="defi-actions" style="margin-top:12px">' + quickActs.map(a => '<button id="' + a.id + '">' + a.label + '</button>').join("") + '</div>';
+
+  // Swap interactions
+  const amtEl = $("swap-amt"), qEl = $("swap-quote");
+  function refreshQuote() { if (qEl && amtEl) qEl.textContent = fmt(swapQuote(swapDir, Number(amtEl.value)), 4); }
+  if (amtEl) amtEl.addEventListener("input", refreshQuote);
+  el.querySelectorAll(".swap-dir button").forEach(b => { b.onclick = () => { swapDir = b.dataset.d; renderDefi(d); }; });
+  const go = $("swap-go");
+  if (go) go.onclick = async (e) => {
+    const amt = Number(amtEl.value);
+    if (!(amt > 0)) { cmdLog && cmdLog("enter a swap amount", "err"); return; }
+    await act(e.target, "/defi/swap", { owner: owner, direction: swapDir, amountIn: amt });
+    if (amtEl) amtEl.value = "";
+  };
+  quickActs.forEach(a => { const btn = $(a.id); if (btn) btn.onclick = (e) => act(e.target, a.act, a.body); });
 }
+let swapDir = "aether_in";
 
 let activeWallet = null;
 function shortAddr(a) { a = String(a || ""); return a.length > 18 ? a.slice(0, 10) + "…" + a.slice(-6) : a; }

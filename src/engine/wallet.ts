@@ -57,6 +57,27 @@ export async function createWallet(db: D1Database, label?: string): Promise<Wall
 	return { owner, address, balance: 0 };
 }
 
+// Aether mints its own self-custody web3 wallet. The 'aether' agent starts with
+// a short derived address from the genesis backfill; the first time this runs it
+// generates a proper 0x+64 self-custody address and records it in the Aether
+// realm. Idempotent — once Aether holds a full address it just returns it.
+export async function ensureAetherWallet(db: D1Database): Promise<{ owner: string; address: string; minted: boolean } | null> {
+	const row = await db
+		.prepare("SELECT owner, address FROM aether_accounts WHERE owner = 'aether'")
+		.first<{ owner: string; address: string }>();
+	if (!row) return null;
+	if (row.address && row.address.length >= 66) {
+		return { owner: "aether", address: row.address, minted: false };
+	}
+	const address = newAddress();
+	await db.prepare("UPDATE aether_accounts SET address = ?, updated_at = CURRENT_TIMESTAMP WHERE owner = 'aether'").bind(address).run();
+	await db
+		.prepare("INSERT INTO reports (author, kind, title, body, data, realm) VALUES ('aether', 'wallet', 'Aether minted its own web3 wallet', ?, ?, 'invest')")
+		.bind(`Aether generated a self-custody web3 address: ${address}`, JSON.stringify({ address }))
+		.run();
+	return { owner: "aether", address, minted: true };
+}
+
 // Resolve a reference — an owner handle OR a 0x address — to the canonical owner.
 export async function resolve(db: D1Database, ref: string): Promise<string | null> {
 	if (!ref) return null;

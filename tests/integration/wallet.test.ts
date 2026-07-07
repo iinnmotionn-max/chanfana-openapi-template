@@ -29,6 +29,23 @@ describe("Wallet — a real in-app web3 wallet over the AETHER ledger", () => {
 		expect(owners).toContain("treasury");
 	});
 
+	it("lets Aether mint its own self-custody web3 wallet", async () => {
+		const first = await post("/wallet/aether");
+		expect(first.status).toBe(200);
+		expect(first.body.result.owner).toBe("aether");
+		// Aether upgrades from its short genesis address to a full 0x+64 address.
+		expect(ADDR_RE.test(first.body.result.address)).toBe(true);
+
+		// Idempotent — a second call returns the same address, doesn't re-mint.
+		const second = await post("/wallet/aether");
+		expect(second.body.result.minted).toBe(false);
+		expect(second.body.result.address).toBe(first.body.result.address);
+
+		// It's recorded in the Aether (invest) realm.
+		const reports = await get("/reports");
+		expect(reports.body.result.some((r: any) => r.author === "aether" && r.kind === "wallet")).toBe(true);
+	});
+
 	it("creates a wallet with a real 0x+64hex address and zero balance", async () => {
 		const created = await post("/wallet", { label: "alice" });
 		expect(created.status).toBe(201);

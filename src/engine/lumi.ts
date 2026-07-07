@@ -10,6 +10,7 @@ import { runSweep } from "./guardian";
 import { research, scoutMarket } from "./knowledge";
 import { runStudy } from "./training";
 import { reward } from "./token";
+import { ensureAetherWallet } from "./wallet";
 
 export type SkillName = "insight" | "vigilance" | "engineering" | "empathy";
 
@@ -382,6 +383,10 @@ export async function lumiPulse(db: D1Database): Promise<PulseResult> {
 			.bind(`Lumi initiative: ${q.title}`)
 			.run();
 	}
+
+	// Aether keeps its own self-custody web3 wallet (mints it once).
+	const aetherWallet = await ensureAetherWallet(db);
+	if (aetherWallet?.minted) decisions.push(`Aether minted its own web3 wallet: ${aetherWallet.address.slice(0, 12)}…`);
 
 	// Situational awareness → initiative: know where you are, act on it.
 	const { awareness } = await selfAssess(db);
