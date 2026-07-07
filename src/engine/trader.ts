@@ -1,0 +1,163 @@
+// Reg's trading cycle: advance the market, let every active bot signal and
+// trade, compound balances, and have the Reporter file a cycle report.
+
+import { getCursor, priceSeries, saveCursor } from "./market";
+import { signalFor, Signal, StrategyParams } from "./strategies";
+
+interface BotRow {
+	id: number;
+	name: string;
+	soul: string;
+	strategy_id: number;
+	symbol: string;
+	balance: number;
+	status: string;
+	kind: string;
+	params: string;
+}
+
+interface OpenTrade {
+	id: number;
+	side: string;
+	qty: number;
+	entry_price: number;
+}
+
+export interface CycleResult {
+	ticks: number;
+	fromTick: number;
+	toTick: number;
+	botsTraded: number;
+	opened: number;
+	closed: number;
+	wins: number;
+	losses: number;
+	totalPnl: number;
+	colonyEquity: number;
+}
+
+const MAX_TICKS_PER_CYCLE = 2000;
+
+export async function runCycle(db: D1Database, ticks: number): Promise<CycleResult> {
+	const steps = Math.min(Math.max(1, Math.floor(ticks)), MAX_TICKS_PER_CYCLE);
+
+	const bots = (
+		await db
+			.prepare(
+				`SELECT b.id, b.name, b.soul, b.strategy_id, b.symbol, b.balance, b.status, s.kind, s.params
+				 FROM bots b JOIN strategies s ON s.id = b.strategy_id
+				 WHERE b.status = 'active' AND s.status = 'active'`,
+			)
+			.all<BotRow>()
+	).results;
+
+	const result: CycleResult = {
+		ticks: steps,
+		fromTick: 0,
+		toTick: 0,
+		botsTraded: bots.length,
+		opened: 0,
+		closed: 0,
+		wins: 0,
+		losses: 0,
+		totalPnl: 0,
+		colonyEquity: 0,
+	};
+
+	// One shared market per symbol; all bots on a symbol see the same tape.
+	const symbols = [...new Set(bots.map((b) => b.symbol))];
+	const statements: D1PreparedStatement[] = [];
+
+	for (const symbol of symbols) {
+		const cursor = await getCursor(db, symbol);
+		const toTick = cursor.tick + steps;
+		const prices = priceSeries(cursor.seed, toTick);
+		result.fromTick = cursor.tick;
+		result.toTick = toTick;
+
+		for (const bot of bots.filter((b) => b.symbol === symbol)) {
+			const soul = safeJson(bot.soul);
+			const params = safeJson(bot.params) as StrategyParams;
+			const riskFraction = 0.05 + 0.25 * Number(soul.risk ?? 0.3);
+
+			let open =
+				(await db
+					.prepare(
+						"SELECT id, side, qty, entry_price FROM trades WHERE bot_id = ? AND outcome = 'open' ORDER BY id DESC LIMIT 1",
+					)
+					.bind(bot.id)
+					.first<OpenTrade>()) ?? null;
+			let position: Signal = open ? (open.side === "long" ? 1 : -1) : 0;
+			let balance = bot.balance;
+
+			for (let t = cursor.tick + 1; t <= toTick; t++) {
+				const { signal, reason } = signalFor(bot.kind, params, prices.slice(0, t + 1));
+				if (signal === position) continue;
+				const price = prices[t];
+
+				if (open) {
+					const pnl =
+						open.side === "long"
+							? (price - open.entry_price) * open.qty
+							: (open.entry_price - price) * open.qty;
+					balance += pnl;
+					const outcome = pnl > 0 ? "win" : pnl < 0 ? "loss" : "flat";
+					statements.push(
+						db
+							.prepare(
+								"UPDATE trades SET exit_price = ?, pnl = ?, outcome = ?, closed_at_tick = ?, reason = reason || ' -> ' || ? WHERE id = ?",
+							)
+							.bind(price, pnl, outcome, t, reason, open.id),
+					);
+					result.closed++;
+					result.totalPnl += pnl;
+					if (outcome === "win") result.wins++;
+					if (outcome === "loss") result.losses++;
+					open = null;
+					position = 0;
+				}
+
+				if (signal !== 0 && balance > 0) {
+					// Compounding: size scales with current balance, shaped by DNA.
+					const qty = (balance * riskFraction) / price;
+					const insert = await db
+						.prepare(
+							"INSERT INTO trades (bot_id, strategy_id, symbol, side, qty, entry_price, opened_at_tick, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+						)
+						.bind(bot.id, bot.strategy_id, symbol, signal === 1 ? "long" : "short", qty, price, t, reason)
+						.first<{ id: number }>();
+					open = { id: insert!.id, side: signal === 1 ? "long" : "short", qty, entry_price: price };
+					position = signal;
+					result.opened++;
+				}
+			}
+
+			statements.push(db.prepare("UPDATE bots SET balance = ? WHERE id = ?").bind(balance, bot.id));
+			result.colonyEquity += balance;
+		}
+
+		await saveCursor(db, { ...cursor, tick: toTick, price: prices[toTick] });
+	}
+
+	if (statements.length > 0) await db.batch(statements);
+
+	// The Reporter files the cycle into the Databank.
+	await db
+		.prepare("INSERT INTO reports (author, kind, title, body, data) VALUES ('reporter', 'cycle', ?, ?, ?)")
+		.bind(
+			`Cycle ${result.fromTick} → ${result.toTick}`,
+			`${result.botsTraded} bots traded ${result.ticks} ticks: ${result.closed} closed (${result.wins}W/${result.losses}L), net ${result.totalPnl.toFixed(2)}. Colony equity ${result.colonyEquity.toFixed(2)}.`,
+			JSON.stringify(result),
+		)
+		.run();
+
+	return result;
+}
+
+function safeJson(raw: string): Record<string, unknown> {
+	try {
+		return JSON.parse(raw) ?? {};
+	} catch {
+		return {};
+	}
+}

@@ -1,8 +1,13 @@
 import { ApiException, fromHono } from "chanfana";
 import { Hono } from "hono";
-import { tasksRouter } from "./endpoints/tasks/router";
 import { ContentfulStatusCode } from "hono/utils/http-status";
-import { DummyEndpoint } from "./endpoints/dummyEndpoint";
+import { AgentsList, ColonySeed } from "./endpoints/colony";
+import { BotCreate, BotsList } from "./endpoints/bots";
+import { EngineLearn, EngineRun } from "./endpoints/engine";
+import { ReportsList, StrategiesList, TradesList } from "./endpoints/records";
+import { GoalCreate, GoalsList, GoalUpdate } from "./endpoints/goals";
+import { AnalyticsOverview } from "./endpoints/analytics";
+import { dashHtml } from "./dash";
 
 // Start a Hono app
 const app = new Hono<{ Bindings: Env }>();
@@ -28,23 +33,47 @@ app.onError((err, c) => {
 	);
 });
 
+// Lumi — the creator dashboard (plain HTML, outside the OpenAPI registry)
+app.get("/dash", (c) => c.html(dashHtml));
+
 // Setup OpenAPI registry
 const openapi = fromHono(app, {
 	docs_url: "/",
 	schema: {
 		info: {
-			title: "My Awesome API",
-			version: "2.0.0",
-			description: "This is the documentation for my awesome API.",
+			title: "Lumi Colony API",
+			version: "1.0.0",
+			description:
+				"Reg's API for the Lumi colony: a self-improving paper-trading system. " +
+				"Seed the colony, run cycles, let the Observer learn from every trade. Dashboard at /dash.",
 		},
 	},
 });
 
-// Register Tasks Sub router
-openapi.route("/tasks", tasksRouter);
+// Colony
+openapi.post("/colony/seed", ColonySeed);
+openapi.get("/agents", AgentsList);
 
-// Register other endpoints
-openapi.post("/dummy/:slug", DummyEndpoint);
+// Bots & strategies
+openapi.get("/bots", BotsList);
+openapi.post("/bots", BotCreate);
+openapi.get("/strategies", StrategiesList);
+
+// Engine
+openapi.post("/engine/run", EngineRun);
+openapi.post("/engine/learn", EngineLearn);
+
+// Databank reads
+openapi.get("/trades", TradesList);
+openapi.get("/reports", ReportsList);
+
+// Goals
+openapi.get("/goals", GoalsList);
+openapi.post("/goals", GoalCreate);
+openapi.patch("/goals/:id", GoalUpdate);
+
+// Analytics (feeds the dashboard)
+openapi.get("/analytics/overview", AnalyticsOverview);
 
 // Export the Hono app
 export default app;
