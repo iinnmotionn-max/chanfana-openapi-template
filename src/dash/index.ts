@@ -216,6 +216,39 @@ export const dashHtml = `<!doctype html>
   .chain-link { font-size: 12px; margin-bottom: 12px; }
   .chain-link.on { color: var(--good); }
   .chain-link.off { color: var(--muted); }
+  /* SHIELD — the showpiece */
+  #shield-card { margin-bottom: 16px; position: relative; overflow: hidden; }
+  .shield-card::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(600px 200px at 18% -20%, rgba(57,135,229,0.10), transparent 70%); }
+  .shield-grid { display: grid; grid-template-columns: 200px 1fr 1.1fr; gap: 18px; align-items: center; }
+  @media (max-width: 900px) { .shield-grid { grid-template-columns: 1fr; } }
+  .gauge-wrap { text-align: center; }
+  .gauge-score { font-size: 34px; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+  .gauge-grade { font-size: 12px; color: var(--muted); letter-spacing: 1px; }
+  .gauge-ruleset { font-size: 11px; color: var(--series-4); margin-top: 4px; }
+  .radar-wrap { text-align: center; }
+  .dims { display: flex; flex-direction: column; gap: 7px; }
+  .dim { }
+  .dim .r { display: flex; justify-content: space-between; font-size: 12px; }
+  .dim .r b { color: var(--ink); }
+  .dim .r .v { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .dim .bar-track { margin-top: 3px; }
+  .shield-lower { display: grid; grid-template-columns: 1.3fr 1fr; gap: 18px; margin-top: 16px; }
+  @media (max-width: 900px) { .shield-lower { grid-template-columns: 1fr; } }
+  .shield-lower h3 { font-size: 11px; letter-spacing: 0.6px; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+  .finding { display: flex; gap: 8px; align-items: baseline; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--grid); }
+  .finding:last-child { border-bottom: none; }
+  .finding .sev { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; flex: none; }
+  .finding .sev.critical { color: var(--critical); border: 1px solid var(--critical); }
+  .finding .sev.warn { color: var(--warning); border: 1px solid var(--warning); }
+  .finding .sev.info { color: var(--muted); border: 1px solid var(--border); }
+  .finding .ft { color: var(--ink-2); }
+  .finding .fd { color: var(--muted); }
+  .kyc-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+  .kyc-badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--series-2); color: var(--series-2); letter-spacing: 0.4px; }
+  .web3-line { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .gauge-arc { transition: stroke-dashoffset 1.1s cubic-bezier(0.22,1,0.36,1); }
+  .radar-poly { transition: all 0.9s cubic-bezier(0.22,1,0.36,1); }
   .supply-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; gap: 2px; background: var(--grid); margin-bottom: 6px; }
   .supply-seg { height: 100%; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
   .aeth-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -309,6 +342,11 @@ export const dashHtml = `<!doctype html>
 <div class="card" id="aether-card">
   <h2>AETHER TOKEN — the colony's AI-credit currency</h2>
   <div id="aether-panel"></div>
+</div>
+
+<div class="card shield-card" id="shield-card">
+  <h2>SHIELD — web3 security · red-team · decentralization · privacy-first KYC</h2>
+  <div id="shield-panel"></div>
 </div>
 
 <div class="section-h">INVEST REALM</div>
@@ -435,7 +473,86 @@ function render(d) {
   renderRisk(d.risk || null, d.markets || []);
   renderTraining(d.training || null);
   renderAether(d.aether || null);
+  renderShield(d.shield || null);
   firstPaint = false;
+}
+
+const DIM_COLOR = { contract: "var(--series-1)", custody: "var(--series-2)", privacy: "var(--series-3)", decentralization: "var(--series-4)", redteam: "var(--critical)" };
+function scoreColor(s) { return s >= 90 ? "var(--good)" : s >= 70 ? "var(--series-1)" : s >= 55 ? "var(--warning)" : "var(--critical)"; }
+
+function renderShield(s) {
+  const el = $("shield-panel");
+  if (!s || !s.posture) { el.innerHTML = '<div class="empty">Running security assessment…</div>'; return; }
+  const p = s.posture, dims = p.dimensions || [];
+  const col = scoreColor(p.score);
+
+  // Radial gauge (270° sweep)
+  const R = 62, C = 2 * Math.PI * R, sweep = 0.75, off = C * (1 - (p.score / 100) * sweep);
+  const gauge =
+    '<svg width="150" height="150" viewBox="0 0 150 150">' +
+      '<circle cx="75" cy="75" r="' + R + '" fill="none" stroke="var(--grid)" stroke-width="10" stroke-linecap="round" ' +
+        'stroke-dasharray="' + (C * sweep) + ' ' + C + '" transform="rotate(135 75 75)"/>' +
+      '<circle class="gauge-arc" cx="75" cy="75" r="' + R + '" fill="none" stroke="' + col + '" stroke-width="10" stroke-linecap="round" ' +
+        'stroke-dasharray="' + (C * sweep) + ' ' + C + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(135 75 75)"/>' +
+    '</svg>';
+
+  // Decentralization radar (5 axes)
+  const cx = 90, cy = 84, rad = 66;
+  const pts = dims.map((d, i) => {
+    const ang = -Math.PI / 2 + (i * 2 * Math.PI) / dims.length;
+    const r = rad * Math.max(0.04, d.score);
+    return [cx + r * Math.cos(ang), cy + r * Math.sin(ang)];
+  });
+  let rings = "";
+  for (let g = 1; g <= 3; g++) {
+    const rr = (rad * g) / 3;
+    const rp = dims.map((_, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / dims.length; return (cx + rr * Math.cos(a)).toFixed(1) + "," + (cy + rr * Math.sin(a)).toFixed(1); }).join(" ");
+    rings += '<polygon points="' + rp + '" fill="none" stroke="var(--grid)" stroke-width="1"/>';
+  }
+  const axes = dims.map((d, i) => {
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / dims.length;
+    const lx = cx + (rad + 12) * Math.cos(a), ly = cy + (rad + 12) * Math.sin(a);
+    return '<line x1="' + cx + '" y1="' + cy + '" x2="' + (cx + rad * Math.cos(a)).toFixed(1) + '" y2="' + (cy + rad * Math.sin(a)).toFixed(1) + '" stroke="var(--grid)" stroke-width="1"/>' +
+      '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8">' + esc(d.dimension.slice(0, 5)) + '</text>';
+  }).join("");
+  const poly = pts.map(p2 => p2[0].toFixed(1) + "," + p2[1].toFixed(1)).join(" ");
+  const radar =
+    '<svg width="196" height="176" viewBox="0 0 196 176">' + rings + axes +
+      '<polygon class="radar-poly" points="' + poly + '" fill="' + col + '" fill-opacity="0.22" stroke="' + col + '" stroke-width="2"/>' +
+      pts.map((p2, i) => '<circle cx="' + p2[0].toFixed(1) + '" cy="' + p2[1].toFixed(1) + '" r="2.5" fill="' + (DIM_COLOR[dims[i].dimension] || col) + '"/>').join("") +
+    '</svg>';
+
+  const dimBars = dims.map(d =>
+    '<div class="dim"><div class="r"><b>' + esc(d.label) + '</b><span class="v">' + Math.round(d.score * 100) + '</span></div>' +
+    '<div class="bar-track"><div class="bar-fill" style="width:' + Math.round(d.score * 100) + '%;background:' + (DIM_COLOR[d.dimension] || col) + '"></div></div></div>'
+  ).join("");
+
+  const findings = (s.findings || []);
+  const findingsHtml = findings.length
+    ? findings.map(f => '<div class="finding"><span class="sev ' + esc(f.severity) + '">' + esc(f.severity) + '</span>' +
+        '<span><span class="ft">' + esc(f.title) + '</span> — <span class="fd">' + esc(f.detail) + '</span></span></div>').join("")
+    : '<div class="finding"><span class="sev info">clear</span><span class="ft">No open findings — posture holding.</span></div>';
+
+  const kyc = s.kyc || { total: 0, byLevel: [] };
+  const kycHtml = '<div class="kyc-row"><span class="kyc-badge">privacy-first</span>' +
+    '<span>' + (Number(kyc.total) || 0) + ' attestation' + (kyc.total === 1 ? "" : "s") + ' · hash-only, no PII stored</span></div>' +
+    (kyc.byLevel && kyc.byLevel.length ? '<div class="web3-line">' + kyc.byLevel.map(k => esc(k.level) + ": " + k.n).join(" · ") + '</div>' : '') +
+    '<div class="web3-line">web3: ' + (p.web3 && p.web3.linked ? "● on-chain · " + esc(p.web3.network) : "○ off-chain — publish to Sui to decentralize settlement") + '</div>';
+
+  el.innerHTML =
+    '<div class="shield-grid">' +
+      '<div class="gauge-wrap">' + gauge +
+        '<div class="gauge-score" style="color:' + col + '">' + p.score + '<span style="font-size:15px;color:var(--muted)">/100</span></div>' +
+        '<div class="gauge-grade">GRADE ' + esc(p.grade) + '</div>' +
+        '<div class="gauge-ruleset">ruleset v' + p.rulesetVersion + ' · ' + p.ruleCount + ' rules · learning</div>' +
+      '</div>' +
+      '<div class="radar-wrap">' + radar + '</div>' +
+      '<div class="dims">' + dimBars + '</div>' +
+    '</div>' +
+    '<div class="shield-lower">' +
+      '<div><h3>Red-team findings</h3>' + findingsHtml + '</div>' +
+      '<div><h3>Decentralized KYC &amp; web3</h3>' + kycHtml + '</div>' +
+    '</div>';
 }
 
 // Fixed-order categorical hues by account (never cycled): treasury, creator,
@@ -846,6 +963,8 @@ const CMD_HELP = [
   "aura list / aura brief <id> — see auras and their personalization briefs",
   "aether — token supply, treasury & balances",
   "aether send <from> <to> <amount> — transfer AETHER credits",
+  "shield — run a red-team security scan (posture + findings)",
+  "kyc <subject> <basic|verified|institutional> <hash> — record a privacy-first attestation",
 ];
 
 async function api(method, path, body) {
@@ -953,6 +1072,18 @@ async function execCommand(text) {
         " supply · " + (a.reconciled ? "reconciled" : "DRIFT") + "\\n" +
         a.accounts.map(ac => "  " + ac.owner + ": " + fmt(ac.balance, 0)).join("\\n");
     }
+    case "shield": {
+      const r = await api("POST", "/shield/scan", {});
+      const crit = (r.dimensions || []).reduce((n, d) => n + d.findings.filter(f => f.severity === "critical").length, 0);
+      return "security posture " + r.score + "/100 (grade " + r.grade + ") · ruleset v" + r.rulesetVersion +
+        " · " + crit + " critical finding(s)";
+    }
+    case "kyc": {
+      const [subject, level, hash] = [parts[1], (parts[2] || "").toLowerCase(), parts[3]];
+      if (!subject || !level || !hash) throw new Error("usage: kyc <subject> <basic|verified|institutional> <hash>");
+      const r = await api("POST", "/shield/kyc", { subject: subject, level: level, attestationHash: hash });
+      return "attestation #" + r.id + " recorded (" + r.level + ", " + r.method + ") — hash only, no PII";
+    }
     case "": return null;
     default: throw new Error('unknown signal "' + cmd + '" — type help');
   }
@@ -985,7 +1116,7 @@ async function sendCommand() {
 }
 $("btn-cmd").onclick = sendCommand;
 $("cmd-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendCommand(); });
-$("cmd-chips").innerHTML = ["pulse", "advance 600", "learn", "train", "audit", "sweep", "scout", "help"]
+$("cmd-chips").innerHTML = ["pulse", "advance 600", "learn", "train", "shield", "audit", "sweep", "aether", "help"]
   .map(c => '<button type="button" data-cmd="' + c + '">' + c + "</button>").join("");
 $("cmd-chips").querySelectorAll("button").forEach(b => {
   b.onclick = () => { $("cmd-input").value = b.dataset.cmd; sendCommand(); };

@@ -15,7 +15,7 @@ async function get(path: string) {
 	return { status: res.status, body: (await res.json()) as any };
 }
 
-const REALM_KEYS = ["invest", "guardian", "tech", "wellness"];
+const REALM_KEYS = ["invest", "guardian", "tech", "wellness", "shield"];
 
 const AUDIT_CHECKS = [
 	"ledger-reconciliation",
@@ -40,7 +40,7 @@ describe("Lumi Colony — creator realms", () => {
 		expect(realms.body.success).toBe(true);
 
 		const list = realms.body.result;
-		expect(list.length).toBe(4);
+		expect(list.length).toBe(5);
 		expect(list.map((r: any) => r.key).sort()).toEqual([...REALM_KEYS].sort());
 		for (const realm of list) {
 			expect(realm.title.length).toBeGreaterThan(0);
@@ -197,7 +197,7 @@ describe("Lumi Colony — creator realms", () => {
 		const overview = await get("/analytics/overview");
 		expect(overview.status).toBe(200);
 		const r = overview.body.result;
-		expect(r.realms.length).toBe(4);
+		expect(r.realms.length).toBe(5);
 		expect(r.checks.length).toBeGreaterThan(0);
 		expect(r.wellness.count).toBeGreaterThanOrEqual(1);
 		expect(r.wellness.last).not.toBeNull();

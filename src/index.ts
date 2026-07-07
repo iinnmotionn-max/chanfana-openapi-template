@@ -28,6 +28,7 @@ import {
 	AetherSpend,
 	AetherTransfer,
 } from "./endpoints/aether";
+import { ShieldKyc, ShieldScan, ShieldStatus } from "./endpoints/shield";
 import { dashHtml } from "./dash";
 
 // Start a Hono app
@@ -144,6 +145,11 @@ openapi.post("/aether/transfer", AetherTransfer);
 openapi.post("/aether/reward", AetherReward);
 openapi.post("/aether/spend", AetherSpend);
 openapi.post("/aether/audit", AetherAudit);
+
+// Shield — web3 security, red-team, decentralization, privacy-first KYC
+openapi.get("/shield", ShieldStatus);
+openapi.post("/shield/scan", ShieldScan);
+openapi.post("/shield/kyc", ShieldKyc);
 
 // Analytics (feeds the cockpit)
 openapi.get("/analytics/overview", AnalyticsOverview);
