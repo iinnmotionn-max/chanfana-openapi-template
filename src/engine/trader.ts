@@ -47,6 +47,8 @@ const MAX_TICKS_PER_CYCLE = 2000;
 // starting balance is paused before it can bleed further.
 const CAPITAL_FLOOR = 0.4;
 
+const clampUnit = (n: number) => Math.min(1, Math.max(0, Number.isFinite(n) ? n : 0));
+
 export async function runCycle(db: D1Database, ticks: number): Promise<CycleResult> {
 	const steps = Math.min(Math.max(1, Math.floor(ticks)), MAX_TICKS_PER_CYCLE);
 
@@ -100,6 +102,15 @@ export async function runCycle(db: D1Database, ticks: number): Promise<CycleResu
 			const soul = safeJson(bot.soul);
 			const params = safeJson(bot.params) as StrategyParams;
 			const riskFraction = 0.05 + 0.25 * Number(soul.risk ?? 0.3);
+			// Profit-taking: bank a winner once it's up by take-profit, cut a loser
+			// at a tighter stop — so a position no longer rides all the way back into
+			// the red waiting for the signal to flip. Both are favourable/adverse
+			// price-move fractions off the entry, shaped by the bot's DNA. Stop is
+			// always well inside take-profit, giving every trade positive asymmetry.
+			const patience = clampUnit(Number(soul.patience ?? 0.6));
+			const riskAppetite = clampUnit(Number(soul.risk ?? 0.3));
+			const takeProfit = 0.03 + 0.04 * patience; // 3%–7% up → lock it in
+			const stopLoss = 0.015 + 0.02 * riskAppetite; // 1.5%–2.3% down → cut it
 
 			let open =
 				(await db
@@ -112,11 +123,32 @@ export async function runCycle(db: D1Database, ticks: number): Promise<CycleResu
 			let balance = bot.balance;
 
 			for (let t = cursor.tick + 1; t <= toTick; t++) {
-				const { signal, reason } = signalFor(bot.kind, params, prices.slice(0, t + 1));
-				if (signal === position) continue;
 				const price = prices[t];
+				const { signal, reason } = signalFor(bot.kind, params, prices.slice(0, t + 1));
+				let blockReopen = false;
 
+				// Manage an open position EVERY tick: take-profit / stop-loss lock the
+				// outcome the moment it crosses a threshold; a signal flip still exits
+				// too. (The old code only looked at a position when the signal changed —
+				// so winners gave their gains back and losers bled until a reversal.)
 				if (open) {
+					const move =
+						open.side === "long"
+							? (price - open.entry_price) / open.entry_price
+							: (open.entry_price - price) / open.entry_price;
+					let exitNote: string | null = null;
+					if (move >= takeProfit) {
+						exitNote = `take-profit +${(move * 100).toFixed(1)}%`;
+						blockReopen = true;
+					} else if (move <= -stopLoss) {
+						exitNote = `stop-loss ${(move * 100).toFixed(1)}%`;
+						blockReopen = true;
+					} else if (signal !== position) {
+						exitNote = reason;
+					}
+
+					if (!exitNote) continue; // holding — signal unchanged, neither threshold hit
+
 					const pnl =
 						open.side === "long"
 							? (price - open.entry_price) * open.qty
@@ -128,7 +160,7 @@ export async function runCycle(db: D1Database, ticks: number): Promise<CycleResu
 							.prepare(
 								"UPDATE trades SET exit_price = ?, pnl = ?, outcome = ?, closed_at_tick = ?, reason = reason || ' -> ' || ? WHERE id = ?",
 							)
-							.bind(price, pnl, outcome, t, reason, open.id),
+							.bind(price, pnl, outcome, t, exitNote, open.id),
 					);
 					result.closed++;
 					result.totalPnl += pnl;
@@ -138,7 +170,9 @@ export async function runCycle(db: D1Database, ticks: number): Promise<CycleResu
 					position = 0;
 				}
 
-				if (signal !== 0 && balance > 0 && !halted) {
+				// Open a fresh position when flat and the signal points somewhere. After a
+				// take-profit/stop-loss exit we wait a tick before re-entering.
+				if (!open && !blockReopen && signal !== 0 && balance > 0 && !halted) {
 					// Compounding: size scales with current balance, shaped by DNA.
 					const qty = (balance * riskFraction) / price;
 					const insert = await db

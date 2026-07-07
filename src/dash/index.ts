@@ -64,11 +64,14 @@ export const dashHtml = `<!doctype html>
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
+  /* Calm mode: when the tab isn't visible, every animation freezes so the
+     dashboard costs the CPU nothing in the background. Toggled from JS. */
+  html.calm *, html.calm *::before, html.calm *::after { animation-play-state: paused !important; }
   header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
   header h1 { font-size: 20px; font-weight: 650; letter-spacing: 0.2px; }
   /* Brand lockup — animated vector mark (4K-crisp atom/aura) + wordmark */
   .brand { display: flex; align-items: center; gap: 13px; }
-  .logo-mark { flex: none; overflow: visible; filter: drop-shadow(0 0 12px rgba(57,135,229,0.5)); }
+  .logo-mark { flex: none; overflow: visible; }
   /* Orbits + particles rotate around the mark's centre (24,24 in viewBox units). */
   .logo-mark .lm-o1, .logo-mark .lm-o2, .logo-mark .lm-o3,
   .logo-mark .lm-p1, .logo-mark .lm-p2, .logo-mark .lm-p3 { transform-box: view-box; transform-origin: 24px 24px; }
@@ -87,12 +90,9 @@ export const dashHtml = `<!doctype html>
   .brand-txt { display: flex; flex-direction: column; line-height: 1.05; }
   .brand-name {
     font-size: 27px; font-weight: 800; letter-spacing: 1.6px;
-    background: linear-gradient(92deg, #bfe4ff 0%, #3987e5 35%, #9085e9 65%, #bfe4ff 100%);
-    background-size: 220% 100%;
+    background: linear-gradient(92deg, #bfe4ff 0%, #3987e5 42%, #9085e9 100%);
     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
-    animation: lm-sheen 6s ease-in-out infinite;
   }
-  @keyframes lm-sheen { 0%,100% { background-position: 0% 0; } 50% { background-position: 100% 0; } }
   .brand-tag { font-size: 9.5px; letter-spacing: 2.4px; color: var(--muted); font-weight: 600; }
   @media (prefers-reduced-motion: reduce) { .logo-mark *, .brand-name { animation: none !important; } }
   header .sub { color: var(--muted); font-size: 13px; }
@@ -716,7 +716,7 @@ let loadSeq = 0;            // monotonic guard: only the newest load may render
 let loading = false;        // in-flight guard: the 5s timer never stacks requests
 
 async function load() {
-  if (loading) return;
+  if (loading || document.hidden) return;   // never poll a hidden tab
   const seq = ++loadSeq;
   loading = true;
   try {
@@ -1628,7 +1628,7 @@ $("cmd-chips").querySelectorAll("button").forEach(b => {
 // Autopilot: Lumi pulses herself — trade, learn, audit, sweep, quests — hands off.
 let autopilot = false, pulsing = false;
 async function autoPulse() {
-  if (!autopilot || pulsing) return;
+  if (!autopilot || pulsing || document.hidden) return;
   pulsing = true;
   try { await fetch("/lumi/pulse", { method: "POST", cache: "no-store" }); await load(); }
   catch (e) {} finally { pulsing = false; }
@@ -1662,8 +1662,20 @@ setInterval(autoPulse, 15000);
   });
 })();
 
+// Calm mode: freeze animations + polling whenever the tab is backgrounded, so
+// the cockpit costs the CPU nothing when you're not looking at it. Resume (and
+// refresh once) when it comes back to the foreground.
+function applyVisibility() {
+  const hidden = document.hidden;
+  document.documentElement.classList.toggle("calm", hidden);
+  if (!hidden) load();
+}
+document.addEventListener("visibilitychange", applyVisibility);
+applyVisibility();
+
 load();
-setInterval(load, 5000);
+// 8s refresh (was 5s) — lighter on the worker + local D1, still feels live.
+setInterval(load, 8000);
 </script>
 </body>
 </html>`;

@@ -335,21 +335,31 @@ export interface PulseResult {
 // One heartbeat of Lumi running the whole operation herself: trade, learn,
 // audit, sweep, progress quests, grow. Engineering scales her trading
 // throughput; Insight (inside runLearning) scales her learning depth.
-export async function lumiPulse(db: D1Database): Promise<PulseResult> {
+export async function lumiPulse(db: D1Database, opts: { trade?: boolean } = {}): Promise<PulseResult> {
 	const t0 = Date.now();
 	const decisions: string[] = [];
 	const before = await getLumi(db);
 
+	// The "miner": autonomous trading. On the unattended cron it's OFF by default
+	// (opts.trade === false) so nothing opens new positions while no one's
+	// watching — the pulse still audits, sweeps and keeps house. Manual pulses
+	// (the dashboard button / API) trade as before.
+	const trade = opts.trade !== false;
+
+	let cycle: Awaited<ReturnType<typeof runCycle>> | null = null;
+	let learned: Awaited<ReturnType<typeof runLearning>> | null = null;
+	if (!trade) {
+		decisions.push("miner off — maintenance pulse only (no new trades opened)");
+	} else {
 	// Trade — throughput grows with Engineering.
 	const ticks = Math.min(2000, 200 + 100 * (before.skills.engineering.level - 1));
 	const c0 = Date.now();
-	const cycle = await runCycle(db, ticks);
+	cycle = await runCycle(db, ticks);
 	await recordMetric(db, "cycle_ms", Date.now() - c0, { ticks, closed: cycle.closed });
 	decisions.push(`traded ${ticks} ticks (engineering L${before.skills.engineering.level}): ${cycle.closed} closed, ${cycle.wins}W/${cycle.losses}L`);
 	await awardXp(db, "engineering", 10 + Math.min(20, cycle.wins), "Trading cycle");
 
 	// Learn — only when there is fresh evidence worth learning from.
-	let learned: Awaited<ReturnType<typeof runLearning>> | null = null;
 	if (cycle.closed >= 10) {
 		const l0 = Date.now();
 		learned = await runLearning(db, { insight: before.skills.insight.level });
@@ -360,6 +370,7 @@ export async function lumiPulse(db: D1Database): Promise<PulseResult> {
 		await awardXp(db, "insight", 15 + (learned.evolved ? 10 : 0) + learned.retired.length * 5, "Learning pass");
 	} else {
 		decisions.push(`skipped learning — only ${cycle.closed} closed trades this pulse (needs 10)`);
+	}
 	}
 
 	// Guard the money and the house.
