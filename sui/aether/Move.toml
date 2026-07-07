@@ -3,8 +3,9 @@ name = "aether"
 edition = "2024.beta"
 version = "1.0.0"
 
-[dependencies]
-Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
+# No explicit Sui dependency: the CLI auto-adds the correct framework for the
+# target network (testnet / devnet / mainnet). Pinning it caused devnet builds
+# to fail with "Could not determine the correct dependencies".
 
 [addresses]
 aether = "0x0"

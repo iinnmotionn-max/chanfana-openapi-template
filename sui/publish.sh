@@ -17,7 +17,12 @@
 
 set -euo pipefail
 
-NETWORK="${1:-testnet}"
+# Normalize the network name (accept TESTNET/Devnet/etc.) and validate it.
+NETWORK="$(printf '%s' "${1:-testnet}" | tr '[:upper:]' '[:lower:]')"
+case "$NETWORK" in
+  testnet|devnet|mainnet) : ;;
+  *) echo "!! Unknown network '$NETWORK'. Use: testnet (recommended), devnet, or mainnet."; exit 1 ;;
+esac
 GAS_BUDGET="${GAS_BUDGET:-200000000}"
 
 # Locate the Move package robustly — works whether the script is executed,
