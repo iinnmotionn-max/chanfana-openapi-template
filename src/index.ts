@@ -21,6 +21,7 @@ import { RiskConfig, RiskHalt, RiskResume, RiskStatusEndpoint } from "./endpoint
 import { MarketFeed, MarketList } from "./endpoints/market";
 import {
 	AetherAudit,
+	AetherChain,
 	AetherLedger,
 	AetherOverview,
 	AetherReward,
@@ -138,6 +139,7 @@ openapi.post("/market/feed", MarketFeed);
 // Aether token — the AI-credit ledger (Sui-style tokenomics)
 openapi.get("/aether", AetherOverview);
 openapi.get("/aether/ledger", AetherLedger);
+openapi.get("/aether/chain", AetherChain);
 openapi.post("/aether/transfer", AetherTransfer);
 openapi.post("/aether/reward", AetherReward);
 openapi.post("/aether/spend", AetherSpend);

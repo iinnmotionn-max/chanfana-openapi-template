@@ -87,4 +87,21 @@ describe("Aether token — the AI-credit ledger", () => {
 		expect(overview.body.result.aether.symbol).toBe("AETHER");
 		expect(overview.body.result.aether.accounts.length).toBeGreaterThanOrEqual(4);
 	});
+
+	it("reports the Sui chain link as not-yet-published (honest, offline-safe)", async () => {
+		const chain = await get("/aether/chain");
+		expect(chain.status).toBe(200);
+		const r = chain.body.result;
+		// No AETHER_PACKAGE_ID configured in tests → not linked, ledger is truth.
+		expect(r.linked).toBe(false);
+		expect(r.packageId).toBeNull();
+		expect(r.coinType).toBeNull();
+		expect(r.rpcUrl).toContain("sui.io");
+		expect(r.note).toContain("Not linked");
+
+		// The overview embeds the same chain status under chainLink.
+		const a = await get("/aether");
+		expect(a.body.result.chain).toBe("sui");
+		expect(a.body.result.chainLink.linked).toBe(false);
+	});
 });

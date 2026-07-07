@@ -4,6 +4,7 @@ import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
 import { auditSupply, reward, spend, tokenOverview, transfer } from "../engine/token";
+import { suiChainStatus } from "../engine/sui";
 
 export class AetherOverview extends OpenAPIRoute {
 	public schema = {
@@ -15,7 +16,22 @@ export class AetherOverview extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
-		return { success: true, result: await tokenOverview(c.env.DB) };
+		const overview = await tokenOverview(c.env.DB);
+		return { success: true, result: { ...overview, chainLink: suiChainStatus(c.env) } };
+	}
+}
+
+export class AetherChain extends OpenAPIRoute {
+	public schema = {
+		tags: ["Aether"],
+		summary: "Sui on-chain link status for the AETHER token",
+		responses: {
+			"200": { description: "Chain status", ...contentJson({ success: z.boolean(), result: z.any() }) },
+		},
+	};
+
+	public async handle(c: AppContext) {
+		return { success: true, result: suiChainStatus(c.env) };
 	}
 }
 

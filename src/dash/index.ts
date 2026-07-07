@@ -213,6 +213,9 @@ export const dashHtml = `<!doctype html>
   .chain-badge { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; padding: 3px 9px; border-radius: 6px;
     color: var(--series-1); border: 1px solid var(--series-1); text-transform: uppercase; }
   .aeth-recon { margin-left: auto; }
+  .chain-link { font-size: 12px; margin-bottom: 12px; }
+  .chain-link.on { color: var(--good); }
+  .chain-link.off { color: var(--muted); }
   .supply-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; gap: 2px; background: var(--grid); margin-bottom: 6px; }
   .supply-seg { height: 100%; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
   .aeth-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -462,9 +465,13 @@ function renderAether(a) {
     '<div class="aeth-top">' +
       '<div class="aeth-hero"><div class="n">' + fmt(a.circulating, 0) + '<span class="sym">' + esc(a.symbol) + '</span></div>' +
         '<div class="lbl">circulating of ' + fmt(a.totalSupply, 0) + ' supply · treasury holds ' + fmt(a.treasury, 0) + '</div></div>' +
-      '<span class="chain-badge">' + esc(a.chain) + '</span>' +
+      '<span class="chain-badge">' + esc(a.chainLink ? "sui · " + a.chainLink.network : a.chain) + '</span>' +
       '<span class="aeth-recon pill ' + (a.reconciled ? "pass" : "fail") + '">' + (a.reconciled ? "supply reconciled" : "SUPPLY DRIFT") + '</span>' +
     '</div>' +
+    (a.chainLink ? '<div class="chain-link ' + (a.chainLink.linked ? "on" : "off") + '">' +
+      (a.chainLink.linked
+        ? '● on-chain · ' + esc(a.chainLink.coinType || "")
+        : '○ off-chain ledger · not yet published to Sui (see docs/AETHER_SUI.md)') + '</div>' : '') +
     '<div class="supply-bar">' + segs + '</div>' +
     '<div class="aeth-legend">' + legend + '</div>' +
     '<div class="aeth-cols">' +

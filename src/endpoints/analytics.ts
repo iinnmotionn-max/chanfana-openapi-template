@@ -9,6 +9,7 @@ import { perfSummary, selfAssess } from "../engine/lumi";
 import { getRisk } from "../engine/risk";
 import { curriculumStatus } from "../engine/training";
 import { tokenOverview } from "../engine/token";
+import { suiChainStatus } from "../engine/sui";
 
 const MAX_CURVE_POINTS = 150;
 
@@ -118,7 +119,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				risk,
 				markets: markets.results,
 				training,
-				aether,
+				aether: { ...aether, chainLink: suiChainStatus(c.env) },
 			},
 		};
 	}
