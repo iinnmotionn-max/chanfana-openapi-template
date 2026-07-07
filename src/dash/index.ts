@@ -66,23 +66,35 @@ export const dashHtml = `<!doctype html>
   }
   header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
   header h1 { font-size: 20px; font-weight: 650; letter-spacing: 0.2px; }
-  /* Brand lockup — animated vector mark (4K-crisp) + wordmark */
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .logo-mark { flex: none; overflow: visible; filter: drop-shadow(0 0 10px rgba(57,135,229,0.45)); }
-  .logo-mark .lm-o1, .logo-mark .lm-o2, .logo-mark .lm-core { transform-box: fill-box; transform-origin: center; }
-  .logo-mark .lm-o1 { animation: lm-spin 16s linear infinite; }
-  .logo-mark .lm-o2 { animation: lm-spin 24s linear infinite reverse; }
+  /* Brand lockup — animated vector mark (4K-crisp atom/aura) + wordmark */
+  .brand { display: flex; align-items: center; gap: 13px; }
+  .logo-mark { flex: none; overflow: visible; filter: drop-shadow(0 0 12px rgba(57,135,229,0.5)); }
+  /* Orbits + particles rotate around the mark's centre (24,24 in viewBox units). */
+  .logo-mark .lm-o1, .logo-mark .lm-o2, .logo-mark .lm-o3,
+  .logo-mark .lm-p1, .logo-mark .lm-p2, .logo-mark .lm-p3 { transform-box: view-box; transform-origin: 24px 24px; }
+  .logo-mark .lm-core, .logo-mark .lm-halo { transform-box: fill-box; transform-origin: center; }
+  .logo-mark .lm-o1 { animation: lm-spin 18s linear infinite; }
+  .logo-mark .lm-o2 { animation: lm-spin 26s linear infinite reverse; }
+  .logo-mark .lm-o3 { animation: lm-spin 34s linear infinite; }
+  .logo-mark .lm-p1 { animation: lm-spin 7s linear infinite; }
+  .logo-mark .lm-p2 { animation: lm-spin 11s linear infinite reverse; animation-delay: -3s; }
+  .logo-mark .lm-p3 { animation: lm-spin 15s linear infinite; animation-delay: -6s; }
   .logo-mark .lm-core { animation: lm-breathe 3.4s ease-in-out infinite; }
+  .logo-mark .lm-halo { animation: lm-halo 3.4s ease-in-out infinite; }
   @keyframes lm-spin { to { transform: rotate(360deg); } }
   @keyframes lm-breathe { 0%,100% { opacity: 0.9; } 50% { opacity: 1; transform: scale(1.08); } }
+  @keyframes lm-halo { 0%,100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 0.65; transform: scale(1.15); } }
   .brand-txt { display: flex; flex-direction: column; line-height: 1.05; }
   .brand-name {
-    font-size: 26px; font-weight: 800; letter-spacing: 1.5px;
-    background: linear-gradient(92deg, #bfe4ff 0%, #3987e5 42%, #9085e9 100%);
+    font-size: 27px; font-weight: 800; letter-spacing: 1.6px;
+    background: linear-gradient(92deg, #bfe4ff 0%, #3987e5 35%, #9085e9 65%, #bfe4ff 100%);
+    background-size: 220% 100%;
     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+    animation: lm-sheen 6s ease-in-out infinite;
   }
+  @keyframes lm-sheen { 0%,100% { background-position: 0% 0; } 50% { background-position: 100% 0; } }
   .brand-tag { font-size: 9.5px; letter-spacing: 2.4px; color: var(--muted); font-weight: 600; }
-  @media (prefers-reduced-motion: reduce) { .logo-mark * { animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .logo-mark *, .brand-name { animation: none !important; } }
   header .sub { color: var(--muted); font-size: 13px; }
   .controls { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
   button {
@@ -456,12 +468,17 @@ export const dashHtml = `<!doctype html>
 <body>
 <header>
   <div class="brand">
-    <svg class="logo-mark" viewBox="0 0 48 48" width="42" height="42" aria-label="Lumi logo">
+    <svg class="logo-mark" viewBox="0 0 48 48" width="44" height="44" role="img" aria-label="Lumi logo">
       <defs>
         <radialGradient id="lm-core" cx="42%" cy="38%" r="65%">
-          <stop offset="0%" stop-color="#bfe4ff"/>
-          <stop offset="42%" stop-color="#3987e5"/>
+          <stop offset="0%" stop-color="#eaf6ff"/>
+          <stop offset="40%" stop-color="#3987e5"/>
           <stop offset="100%" stop-color="#1c4f95"/>
+        </radialGradient>
+        <radialGradient id="lm-halo" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#5aa0ff" stop-opacity="0.55"/>
+          <stop offset="60%" stop-color="#3987e5" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="#3987e5" stop-opacity="0"/>
         </radialGradient>
         <linearGradient id="lm-ring" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stop-color="#3987e5"/>
@@ -469,8 +486,13 @@ export const dashHtml = `<!doctype html>
           <stop offset="100%" stop-color="#199e70"/>
         </linearGradient>
       </defs>
-      <g class="lm-o1"><ellipse cx="24" cy="24" rx="22" ry="9" fill="none" stroke="url(#lm-ring)" stroke-width="1.5" opacity="0.85"/></g>
-      <g class="lm-o2"><ellipse cx="24" cy="24" rx="22" ry="9" fill="none" stroke="url(#lm-ring)" stroke-width="1.5" opacity="0.5" transform="rotate(62 24 24)"/></g>
+      <circle class="lm-halo" cx="24" cy="24" r="15" fill="url(#lm-halo)"/>
+      <g class="lm-o1"><ellipse cx="24" cy="24" rx="22" ry="8.5" fill="none" stroke="url(#lm-ring)" stroke-width="1.4" opacity="0.9"/></g>
+      <g class="lm-o2"><ellipse cx="24" cy="24" rx="22" ry="8.5" fill="none" stroke="url(#lm-ring)" stroke-width="1.4" opacity="0.55" transform="rotate(60 24 24)"/></g>
+      <g class="lm-o3"><ellipse cx="24" cy="24" rx="22" ry="8.5" fill="none" stroke="url(#lm-ring)" stroke-width="1.1" opacity="0.32" transform="rotate(120 24 24)"/></g>
+      <g class="lm-p1"><circle cx="24" cy="7" r="1.7" fill="#bfe4ff"/></g>
+      <g class="lm-p2"><circle cx="24" cy="9" r="1.4" fill="#9085e9"/></g>
+      <g class="lm-p3"><circle cx="24" cy="8" r="1.2" fill="#199e70"/></g>
       <circle class="lm-core" cx="24" cy="24" r="8.5" fill="url(#lm-core)"/>
       <circle cx="24" cy="24" r="8.5" fill="none" stroke="#cfebff" stroke-width="0.6" opacity="0.7"/>
     </svg>
