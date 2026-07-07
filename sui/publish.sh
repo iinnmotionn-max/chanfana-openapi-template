@@ -11,7 +11,7 @@
 #
 # Prereqs:
 #   - Sui CLI installed:  https://docs.sui.io/guides/developer/getting-started/sui-install
-#   - jq installed
+#   - Node.js (used to parse the publish output; jq NOT required)
 #   - An active wallet with gas:  sui client active-address ; sui client gas
 #   - (to auto-set Worker secrets) wrangler logged in:  npx wrangler login
 
@@ -55,8 +55,20 @@ echo "==> Building the Move package…"
 echo "==> Publishing (this signs a real transaction and spends gas)…"
 OUT="$(cd "$PKG" && sui client publish --gas-budget "$GAS_BUDGET" --json)"
 
-PACKAGE_ID="$(echo "$OUT" | jq -r '.objectChanges[] | select(.type=="published") | .packageId')"
-TREASURY_CAP="$(echo "$OUT" | jq -r '.objectChanges[] | select(.type=="created" and (.objectType|test("TreasuryCap"))) | .objectId' | head -n1)"
+# Parse with Node (always present via npm) so jq isn't required on Windows.
+PARSED="$(printf '%s' "$OUT" | node -e '
+  let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+    try{
+      const j=JSON.parse(s);
+      const ch=j.objectChanges||[];
+      const pub=ch.find(c=>c.type==="published");
+      const cap=ch.find(c=>c.type==="created"&&/TreasuryCap/.test(c.objectType||""));
+      process.stdout.write(((pub&&pub.packageId)||"")+"\t"+((cap&&cap.objectId)||""));
+    }catch(e){process.stdout.write("\t");}
+  });
+')"
+PACKAGE_ID="${PARSED%%$'\t'*}"
+TREASURY_CAP="${PARSED#*$'\t'}"
 
 if [ -z "$PACKAGE_ID" ] || [ "$PACKAGE_ID" = "null" ]; then
   echo "!! Could not parse packageId from publish output. Full output:"
