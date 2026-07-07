@@ -50,6 +50,15 @@ import {
 	GrowthPosts,
 	GrowthScout,
 } from "./endpoints/growth";
+import {
+	ConnectorConnect,
+	ConnectorsList,
+	DealAdvance,
+	DealCreate,
+	DealsList,
+	GrowthAnalytics,
+	PostPublish,
+} from "./endpoints/growthx";
 import { dashHtml } from "./dash";
 
 // Start a Hono app
@@ -198,6 +207,14 @@ openapi.post("/growth/campaign", GrowthCampaign);
 openapi.post("/growth/lead", GrowthLead);
 openapi.get("/growth/leads", GrowthLeads);
 openapi.post("/growth/scout", GrowthScout);
+// Growth v2 — connectors (real publishing), deals pipeline, analytics
+openapi.get("/growth/connectors", ConnectorsList);
+openapi.post("/growth/connect", ConnectorConnect);
+openapi.post("/growth/post/:id/publish", PostPublish);
+openapi.get("/growth/deals", DealsList);
+openapi.post("/growth/deal", DealCreate);
+openapi.patch("/growth/deal/:id", DealAdvance);
+openapi.get("/growth/analytics", GrowthAnalytics);
 
 // Analytics (feeds the cockpit)
 openapi.get("/analytics/overview", AnalyticsOverview);

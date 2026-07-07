@@ -14,6 +14,7 @@ import { shieldOverview } from "../engine/shield";
 import { walletList } from "../engine/wallet";
 import { defiOverview } from "../engine/defi";
 import { growthOverview } from "../engine/growth";
+import { connectorStatus, dealsPipeline } from "../engine/growthx";
 
 const MAX_CURVE_POINTS = 150;
 
@@ -32,7 +33,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 	public async handle(c: AppContext) {
 		const db = c.env.DB;
 
-		const [agents, bots, closedTrades, openTrades, reports, goals, market, strategies, realms, checks, wellness, lumi, quests, perf, risk, markets, training, aether, shield, wallets, defi, growth] = await Promise.all([
+		const [agents, bots, closedTrades, openTrades, reports, goals, market, strategies, realms, checks, wellness, lumi, quests, perf, risk, markets, training, aether, shield, wallets, defi, growth, deals, connectors] = await Promise.all([
 			db.prepare("SELECT id, name, role, dna, status FROM agents ORDER BY id").all(),
 			db
 				.prepare(
@@ -79,6 +80,8 @@ export class AnalyticsOverview extends OpenAPIRoute {
 			walletList(db),
 			defiOverview(db),
 			growthOverview(db),
+			dealsPipeline(db),
+			connectorStatus(db, c.env),
 		]);
 
 		const botRows = bots.results.map(decorateBot);
@@ -131,7 +134,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				shield,
 				wallets,
 				defi,
-				growth,
+				growth: { ...growth, deals, connectors },
 			},
 		};
 	}

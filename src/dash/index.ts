@@ -251,6 +251,17 @@ export const dashHtml = `<!doctype html>
   .gp-plat { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--series-4); width: 56px; flex: none; }
   .gp-body { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
   .gp-body .mutedtxt { color: var(--muted); }
+  .conns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .conn { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; text-transform: capitalize; }
+  .conn .cdot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .conn.live { color: var(--good); border-color: var(--good); } .conn.live .cdot { background: var(--good); }
+  .conn.linked { color: var(--warning); border-color: var(--warning); } .conn.linked .cdot { background: var(--warning); }
+  .deals-strip { background: var(--page); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .ds-head { font-size: 13px; color: var(--ink-2); margin-bottom: 10px; } .ds-head b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .dstages { display: flex; gap: 8px; }
+  .dstage { flex: 1; text-align: center; background: var(--surface); border-radius: 8px; padding: 8px 4px; }
+  .dstage .dnum { display: block; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .dstage .dlbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
   .aeth-top { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
   .aeth-hero .n { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
   .aeth-hero .n .sym { font-size: 15px; color: var(--series-4); font-weight: 650; margin-left: 6px; }
@@ -580,8 +591,27 @@ function renderGrowth(g) {
     { id: "g-scout", label: "Scout leads", act: "/growth/scout", body: {} },
   ];
 
+  // Growth v2: connectors + weighted deal pipeline.
+  const deals = g.deals || { byStage: {}, weightedValue: 0, wonValue: 0, open: 0, deals: [] };
+  const conns = g.connectors || [];
+  const connHtml = conns.length
+    ? conns.map(cn =>
+        '<span class="conn ' + (cn.connected ? "live" : cn.status === "connected" ? "linked" : "off") + '">' +
+        '<span class="cdot"></span>' + esc(cn.platform) + (cn.handle ? ' @' + esc(cn.handle) : "") + '</span>'
+      ).join("")
+    : '';
+  const stageOrder = [["prospect", "var(--muted)"], ["contacted", "var(--series-1)"], ["negotiating", "var(--series-3)"], ["won", "var(--good)"], ["lost", "var(--critical)"]];
+  const dealStages = stageOrder.map(st =>
+    '<div class="dstage"><span class="dnum" style="color:' + st[1] + '">' + (deals.byStage[st[0]] || 0) + '</span>' +
+    '<span class="dlbl">' + st[0] + '</span></div>'
+  ).join("");
+
   el.innerHTML =
     '<div class="tiles" style="margin-bottom:12px">' + tiles + '</div>' +
+    (connHtml ? '<div class="conns">' + connHtml + '</div>' : '') +
+    '<div class="deals-strip"><div class="ds-head"><b>' + fmt(deals.weightedValue || 0, 0) + '</b> weighted pipeline · ' +
+      fmt(deals.wonValue || 0, 0) + ' won · ' + (deals.open || 0) + ' open deals</div>' +
+      '<div class="dstages">' + dealStages + '</div></div>' +
     '<div class="defi-actions">' + growthActs.map(a => '<button id="' + a.id + '">' + a.label + '</button>').join("") + '</div>' +
     '<div class="growth-cols">' +
       '<div><h3>Funnel</h3><div class="funnel">' + funnelHtml + '</div>' +
