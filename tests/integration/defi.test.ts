@@ -83,12 +83,14 @@ describe("DeFi liquidity layer — AETHER AMM, vaults, lending", () => {
 		expect(rm.body.result.quoteOut).toBeGreaterThan(0);
 	});
 
-	it("registers the 'aether' realm and keeps AETHER supply reconciled after activity", async () => {
+	it("lives under the unified Aether realm and keeps AETHER supply reconciled after activity", async () => {
 		const realms = await get("/realms");
 		expect(realms.status).toBe(200);
-		const aetherRealm = realms.body.result.find((r: any) => r.key === "aether");
+		// Invest and Aether are one realm: keyed 'invest', presented as "Aether".
+		const aetherRealm = realms.body.result.find((r: any) => r.key === "invest");
 		expect(aetherRealm).toBeTruthy();
 		expect(aetherRealm.title).toBe("Aether");
+		expect(realms.body.result.find((r: any) => r.key === "aether")).toBeUndefined();
 
 		// Exercise the whole layer, then confirm the fixed supply still reconciles.
 		await post("/defi/pool/add", { owner: "creator", aether: 8000, quote: 8000 });

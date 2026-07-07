@@ -420,7 +420,7 @@ export const dashHtml = `<!doctype html>
   <div id="shield-panel"></div>
 </div>
 
-<div class="section-h">INVEST REALM</div>
+<div class="section-h">AETHER REALM — trading · token · wallet · liquidity</div>
 <div class="tiles" id="tiles"></div>
 
 <div class="card" id="risk-card">
