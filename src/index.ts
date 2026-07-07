@@ -227,9 +227,6 @@ import { lumiPulse } from "./engine/lumi";
 export default {
 	fetch: app.fetch,
 	async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-		// Miner off on the unattended cron: Lumi audits, sweeps and keeps house
-		// every hour but opens no new trades while no one is watching. Trading
-		// happens only on an explicit manual pulse / engine run.
-		ctx.waitUntil(lumiPulse(env.DB, { trade: false }));
+		ctx.waitUntil(lumiPulse(env.DB));
 	},
 };
