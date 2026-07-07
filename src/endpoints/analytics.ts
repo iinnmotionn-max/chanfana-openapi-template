@@ -5,6 +5,7 @@ import { z } from "zod";
 import { AppContext } from "../types";
 import { decorateBot } from "./bots";
 import { realmsOverview, wellnessStats } from "./realms";
+import { perfSummary, selfAssess } from "../engine/lumi";
 
 const MAX_CURVE_POINTS = 150;
 
@@ -23,7 +24,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 	public async handle(c: AppContext) {
 		const db = c.env.DB;
 
-		const [agents, bots, closedTrades, openTrades, reports, goals, market, strategies, realms, checks, wellness] = await Promise.all([
+		const [agents, bots, closedTrades, openTrades, reports, goals, market, strategies, realms, checks, wellness, lumi, quests, perf] = await Promise.all([
 			db.prepare("SELECT id, name, role, dna, status FROM agents ORDER BY id").all(),
 			db
 				.prepare(
@@ -59,6 +60,9 @@ export class AnalyticsOverview extends OpenAPIRoute {
 			realmsOverview(db),
 			db.prepare("SELECT * FROM checks ORDER BY id DESC LIMIT 10").all(),
 			wellnessStats(db),
+			selfAssess(db),
+			db.prepare("SELECT * FROM quests ORDER BY status = 'done', id").all(),
+			perfSummary(db),
 		]);
 
 		const botRows = bots.results.map(decorateBot);
@@ -101,6 +105,9 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				realms,
 				checks: checks.results,
 				wellness,
+				lumi: { ...lumi.lumi, awareness: lumi.awareness },
+				quests: quests.results,
+				perf,
 			},
 		};
 	}

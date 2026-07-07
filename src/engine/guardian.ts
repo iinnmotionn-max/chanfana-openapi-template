@@ -21,6 +21,11 @@ export const EXPECTED_TABLES = [
 	"realms",
 	"checks",
 	"wellness_checkins",
+	"metrics",
+	"lumi_state",
+	"quests",
+	"knowledge",
+	"auras",
 ] as const;
 
 const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.]+/;
@@ -70,6 +75,9 @@ export async function runSweep(db: D1Database): Promise<SweepResult> {
 	const notes = (
 		await db.prepare("SELECT id, note FROM wellness_checkins").all<{ id: number; note: string }>()
 	).results;
+	const auraNotes = (
+		await db.prepare("SELECT id, notes FROM auras").all<{ id: number; notes: string }>()
+	).results;
 	const piiHits: string[] = [];
 	for (const r of reports) {
 		const text = `${r.title}\n${r.body}`;
@@ -78,10 +86,26 @@ export async function runSweep(db: D1Database): Promise<SweepResult> {
 	for (const n of notes) {
 		if (EMAIL_RE.test(n.note) || LONG_DIGITS_RE.test(n.note)) piiHits.push(`checkin #${n.id}`);
 	}
+	for (const a of auraNotes) {
+		if (EMAIL_RE.test(a.notes) || LONG_DIGITS_RE.test(a.notes)) piiHits.push(`aura #${a.id}`);
+	}
 	checks.push(
 		piiHits.length > 0
 			? { name: "privacy-scan", status: "warn", detail: `PII-like content found in: ${piiHits.join(", ")}` }
-			: { name: "privacy-scan", status: "pass", detail: `no PII-like content in latest ${reports.length} reports or ${notes.length} wellness notes` },
+			: { name: "privacy-scan", status: "pass", detail: `no PII-like content in latest ${reports.length} reports, ${notes.length} wellness notes, or ${auraNotes.length} auras` },
+	);
+
+	// Aura consent: notes only exist with consent, and the creator is never
+	// profiled — the aura layer's privacy rules, verified from the data.
+	const violations = (
+		await db
+			.prepare("SELECT id FROM auras WHERE (LENGTH(notes) > 0 AND consent = 0) OR name LIKE '%creator%'")
+			.all<{ id: number }>()
+	).results;
+	checks.push(
+		violations.length > 0
+			? { name: "aura-consent", status: "fail", detail: `auras violating consent/creator rules: ${violations.map((v) => v.id).join(", ")}` }
+			: { name: "aura-consent", status: "pass", detail: `${auraNotes.length} auras respect consent; creator never profiled` },
 	);
 
 	// Agents heartbeat: every active agent checks in.

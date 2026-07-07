@@ -39,6 +39,36 @@ the cockpit and `GET /realms`.
   falls below 40% of its starting balance is auto-paused; the cycle result
   reports `paused` and an `alert` report is filed in the Invest realm.
 
+## Lumi's evolution — skills, quests, awareness, initiative
+
+Lumi is a living system, not a static dashboard:
+
+- **Skills** (`lumi_state`): Insight, Vigilance, Engineering, Empathy — XP
+  from real work only (cycles, learning, audits, sweeps, check-ins, auras).
+  Levels follow a square curve and **feed back into the engine**: Insight
+  widens mutation spread and breeds bigger champion broods; Engineering
+  raises ticks-per-pulse.
+- **Quests** (`quests`): a seeded task line evaluated against real Databank
+  state (trades closed, generations reached, clean sweeps, check-ins,
+  knowledge gathered). Completion pays XP and is chronicled.
+- **Awareness** (`selfAssess`): every pulse she states where she is — stage
+  (Hatchling → Apprentice → Operator → Strategist → Sage), focus, current
+  initiative (the open quest closest to done), and blockers.
+- **Initiative** (`pursueInitiative`): she acts on the assessment — extra
+  cycles, research expeditions, market scouts — and keeps a self-set goal in
+  the Databank until the quest completes. She does not stop until it's done.
+- **Automation**: cockpit Autopilot pulses her every 15s in the browser; a
+  Cron Trigger pulses her hourly when deployed. Engine phase durations land
+  in `metrics` (cycle/learn/audit/sweep/pulse ms) — the Tech realm's
+  performance monitor.
+- **Knowledge** (`knowledge`): expeditions to free public sources (Hugging
+  Face Hub, CoinGecko) are banked permanently and earn Insight.
+- **Aura layer** (`auras`): personality + design profiles of clients, brands,
+  users, investors → personalization briefs (tone, detail, pacing, palette,
+  risk framing). Privacy is structural: notes require consent, the Guardian's
+  privacy scan covers aura notes, `aura-consent` fails the sweep on
+  violations, and the creator is never profiled.
+
 ## The Invest realm — the trading colony
 
 ### Why the bots were losing (and how this fixes it)

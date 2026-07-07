@@ -24,6 +24,7 @@ export interface LearnResult {
 	retired: number[];
 	reassignedBots: number;
 	evolved: { fromStrategyId: number; newStrategyId: number; newBotId: number } | null;
+	brood: number;
 	overallWinRate: number;
 }
 
@@ -31,7 +32,11 @@ const MIN_TRADES = 8; // evidence required before judging a strategy
 const SCORE_FLOOR = 0.35; // below this (with evidence), a strategy is retired
 const PF_CAP = 3;
 
-export async function runLearning(db: D1Database): Promise<LearnResult> {
+// opts.insight is Lumi's Insight skill level: it widens mutation spread and
+// lets the champion breed a larger brood — her learning literally deepens as
+// she levels up.
+export async function runLearning(db: D1Database, opts: { insight?: number } = {}): Promise<LearnResult> {
+	const insight = Math.max(1, opts.insight ?? 1);
 	const rows = (
 		await db
 			.prepare(
@@ -91,6 +96,7 @@ export async function runLearning(db: D1Database): Promise<LearnResult> {
 		retired: toRetire.map((s) => s.strategyId),
 		reassignedBots: 0,
 		evolved: null,
+		brood: 0,
 		overallWinRate: totalWinRate(scores),
 	};
 
@@ -127,30 +133,44 @@ export async function runLearning(db: D1Database): Promise<LearnResult> {
 			.bind(champion.strategyId)
 			.first<{ n: number }>();
 		const siblingCount = siblings?.n ?? 0;
-		const rand = mulberry32(champion.strategyId * 7919 + champion.generation * 131 + siblingCount);
-		const childParams = mutateParams(champion.kind, safeJson(row.params) as StrategyParams, rand);
-		// Later siblings get a letter suffix so every lineage name stays unique.
-		const childName = champion.name.replace(/ g\d+[a-z]?$/, "") + ` g${champion.generation + 1}` + (siblingCount > 0 ? String.fromCharCode(97 + siblingCount) : "");
-		const child = await db
-			.prepare(
-				"INSERT INTO strategies (name, kind, params, generation, parent_id) VALUES (?, ?, ?, ?, ?) RETURNING id",
-			)
-			.bind(
-				childName,
-				champion.kind,
-				JSON.stringify(childParams),
-				champion.generation + 1,
-				champion.strategyId,
-			)
-			.first<{ id: number }>();
+		// Insight controls the brood: higher levels breed more variants per pass,
+		// exploring more boldly around the champion.
+		const broodSize = 1 + Math.min(2, Math.floor((insight - 1) / 2));
+		const mutationScale = 1 + 0.15 * (insight - 1);
 		const soul = await colonyDna(db);
-		const bot = await db
-			.prepare(
-				"INSERT INTO bots (name, soul, strategy_id, symbol, balance, starting_balance) VALUES (?, ?, ?, 'SIM-BTC', 1000, 1000) RETURNING id",
-			)
-			.bind(childName.replace(/ /g, "-"), JSON.stringify(soul), child!.id)
-			.first<{ id: number }>();
-		result.evolved = { fromStrategyId: champion.strategyId, newStrategyId: child!.id, newBotId: bot!.id };
+
+		for (let b = 0; b < broodSize; b++) {
+			const seq = siblingCount + b;
+			const rand = mulberry32(champion.strategyId * 7919 + champion.generation * 131 + seq);
+			const childParams = mutateParams(champion.kind, safeJson(row.params) as StrategyParams, rand, mutationScale);
+			// Later siblings get a letter suffix so every lineage name stays unique.
+			const childName =
+				champion.name.replace(/ g\d+[a-z]?$/, "") +
+				` g${champion.generation + 1}` +
+				(seq > 0 ? String.fromCharCode(97 + seq) : "");
+			const child = await db
+				.prepare(
+					"INSERT INTO strategies (name, kind, params, generation, parent_id) VALUES (?, ?, ?, ?, ?) RETURNING id",
+				)
+				.bind(
+					childName,
+					champion.kind,
+					JSON.stringify(childParams),
+					champion.generation + 1,
+					champion.strategyId,
+				)
+				.first<{ id: number }>();
+			const bot = await db
+				.prepare(
+					"INSERT INTO bots (name, soul, strategy_id, symbol, balance, starting_balance) VALUES (?, ?, ?, 'SIM-BTC', 1000, 1000) RETURNING id",
+				)
+				.bind(childName.replace(/ /g, "-"), JSON.stringify(soul), child!.id)
+				.first<{ id: number }>();
+			result.brood++;
+			if (!result.evolved) {
+				result.evolved = { fromStrategyId: champion.strategyId, newStrategyId: child!.id, newBotId: bot!.id };
+			}
+		}
 	}
 
 	// Keep the roadmap honest: win-rate goal tracks the measured number.
@@ -164,7 +184,11 @@ export async function runLearning(db: D1Database): Promise<LearnResult> {
 		.bind(
 			`Learning pass: ${judged.length} strategies judged`,
 			`Colony win rate ${(result.overallWinRate * 100).toFixed(1)}%. Retired ${result.retired.length} strategies, reassigned ${result.reassignedBots} bots` +
-				(champion ? `, evolved champion "${champion.name}" (score ${champion.score.toFixed(2)}) into generation ${champion.generation + 1}.` : ". No champion yet — need more trade evidence."),
+				(champion
+					? result.brood > 0
+						? `, evolved champion "${champion.name}" (score ${champion.score.toFixed(2)}) into generation ${champion.generation + 1} — brood of ${result.brood} at insight L${insight}.`
+						: `. Champion "${champion.name}" holds; its youngest child is still proving itself.`
+					: ". No champion yet — need more trade evidence."),
 			JSON.stringify(result),
 		)
 		.run();

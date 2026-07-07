@@ -3,6 +3,7 @@ import { z } from "zod";
 import { AppContext } from "../types";
 import { runCycle } from "../engine/trader";
 import { runLearning } from "../engine/learning";
+import { getLumi, recordMetric } from "../engine/lumi";
 
 export class EngineRun extends OpenAPIRoute {
 	public schema = {
@@ -26,9 +27,18 @@ export class EngineRun extends OpenAPIRoute {
 
 	public async handle(c: AppContext) {
 		const { body } = await this.getValidatedData<typeof this.schema>();
+		const t0 = Date.now();
 		const result = await runCycle(c.env.DB, body.ticks);
-		// Active advancement learning: trade and learn in one call.
-		const learned = body.learn ? await runLearning(c.env.DB) : null;
+		await recordMetric(c.env.DB, "cycle_ms", Date.now() - t0, { ticks: body.ticks, closed: result.closed });
+		// Active advancement learning: trade and learn in one call, at Lumi's
+		// current insight level.
+		let learned = null;
+		if (body.learn) {
+			const lumi = await getLumi(c.env.DB);
+			const l0 = Date.now();
+			learned = await runLearning(c.env.DB, { insight: lumi.skills.insight.level });
+			await recordMetric(c.env.DB, "learn_ms", Date.now() - l0, { judged: learned.scores.length });
+		}
 		return { success: true, result: { ...result, learned } };
 	}
 }
@@ -46,7 +56,10 @@ export class EngineLearn extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
-		const result = await runLearning(c.env.DB);
+		const lumi = await getLumi(c.env.DB);
+		const t0 = Date.now();
+		const result = await runLearning(c.env.DB, { insight: lumi.skills.insight.level });
+		await recordMetric(c.env.DB, "learn_ms", Date.now() - t0, { judged: result.scores.length });
 		return { success: true, result };
 	}
 }

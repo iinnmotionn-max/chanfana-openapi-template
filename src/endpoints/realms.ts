@@ -7,6 +7,7 @@ import { z } from "zod";
 import { AppContext } from "../types";
 import { auditInvest, recordAudit } from "../engine/integrity";
 import { EXPECTED_TABLES, runSweep } from "../engine/guardian";
+import { awardXp, perfSummary } from "../engine/lumi";
 
 interface RealmRow {
 	id: number;
@@ -139,12 +140,13 @@ export class TechStatus extends OpenAPIRoute {
 			tables[t] = countResults[i].results[0]?.n ?? 0;
 		});
 
-		const [market, activeBots, activeStrategies, lastReport, realmRows] = await Promise.all([
+		const [market, activeBots, activeStrategies, lastReport, realmRows, perf] = await Promise.all([
 			db.prepare("SELECT MAX(tick) as t FROM market_state").first<{ t: number | null }>(),
 			db.prepare("SELECT COUNT(*) as n FROM bots WHERE status = 'active'").first<{ n: number }>(),
 			db.prepare("SELECT COUNT(*) as n FROM strategies WHERE status = 'active'").first<{ n: number }>(),
 			db.prepare("SELECT title, created_at FROM reports ORDER BY id DESC LIMIT 1").first<{ title: string; created_at: string }>(),
 			db.prepare("SELECT key, status FROM realms").all<{ key: string; status: string }>(),
+			perfSummary(db),
 		]);
 
 		await db.prepare("UPDATE realms SET updated_at = CURRENT_TIMESTAMP WHERE key = 'tech'").run();
@@ -158,6 +160,7 @@ export class TechStatus extends OpenAPIRoute {
 				activeStrategies: activeStrategies?.n ?? 0,
 				lastReport: lastReport ?? null,
 				realmStatuses: Object.fromEntries(realmRows.results.map((r) => [r.key, r.status])),
+				perf,
 			},
 		};
 	}
@@ -223,6 +226,8 @@ export class WellnessCheckin extends OpenAPIRoute {
 				"UPDATE goals SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP WHERE title = 'Creator check-in streak'",
 			),
 		]);
+		// Caring for the creator is how Lumi grows her Empathy.
+		await awardXp(db, "empathy", 20, "Creator check-in");
 		return c.json({ success: true, result: checkin }, 201);
 	}
 }

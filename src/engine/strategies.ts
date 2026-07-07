@@ -80,9 +80,10 @@ export function signalFor(kind: string, params: StrategyParams, prices: number[]
 }
 
 // Mutate a champion's params to create the next generation. `rand` is injected
-// so evolution stays deterministic under test.
-export function mutateParams(kind: string, params: StrategyParams, rand: () => number): StrategyParams {
-	const jitter = (v: number, spread: number, min: number) => Math.max(min, v * (1 + (rand() - 0.5) * spread));
+// so evolution stays deterministic under test. `scale` widens the mutation
+// spread — Lumi's Insight level raises it, letting her explore more boldly.
+export function mutateParams(kind: string, params: StrategyParams, rand: () => number, scale = 1): StrategyParams {
+	const jitter = (v: number, spread: number, min: number) => Math.max(min, v * (1 + (rand() - 0.5) * spread * scale));
 	switch (kind) {
 		case "sma_cross":
 			return {

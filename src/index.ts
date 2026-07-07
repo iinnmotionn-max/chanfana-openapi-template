@@ -2,7 +2,7 @@ import { ApiException, fromHono } from "chanfana";
 import { Hono } from "hono";
 import { ContentfulStatusCode } from "hono/utils/http-status";
 import { AgentsList, ColonySeed } from "./endpoints/colony";
-import { BotCreate, BotsList } from "./endpoints/bots";
+import { BotCreate, BotsList, BotUpdate } from "./endpoints/bots";
 import { EngineLearn, EngineRun } from "./endpoints/engine";
 import { ReportsList, StrategiesList, TradesList } from "./endpoints/records";
 import { GoalCreate, GoalsList, GoalUpdate } from "./endpoints/goals";
@@ -15,6 +15,8 @@ import {
 	WellnessCheckin,
 	WellnessSummary,
 } from "./endpoints/realms";
+import { KnowledgeList, LumiPulse, LumiResearch, LumiScout, LumiStatus } from "./endpoints/lumi";
+import { AuraBrief, AuraCreate, AuraList } from "./endpoints/auras";
 import { dashHtml } from "./dash";
 
 // Start a Hono app
@@ -65,6 +67,7 @@ openapi.get("/agents", AgentsList);
 // Bots & strategies
 openapi.get("/bots", BotsList);
 openapi.post("/bots", BotCreate);
+openapi.patch("/bots/:id", BotUpdate);
 openapi.get("/strategies", StrategiesList);
 
 // Engine
@@ -80,6 +83,18 @@ openapi.get("/goals", GoalsList);
 openapi.post("/goals", GoalCreate);
 openapi.patch("/goals/:id", GoalUpdate);
 
+// Lumi herself: profile, quests, pulse, and expeditions into the world
+openapi.get("/lumi", LumiStatus);
+openapi.post("/lumi/pulse", LumiPulse);
+openapi.post("/lumi/research", LumiResearch);
+openapi.post("/lumi/scout", LumiScout);
+openapi.get("/knowledge", KnowledgeList);
+
+// Aura layer: personality + design profiles (consent-gated, never the creator)
+openapi.get("/auras", AuraList);
+openapi.post("/auras", AuraCreate);
+openapi.get("/auras/:id/brief", AuraBrief);
+
 // Realms — Lumi's four domains
 openapi.get("/realms", RealmsList);
 openapi.post("/realms/invest/audit", InvestAudit);
@@ -91,5 +106,13 @@ openapi.post("/realms/wellness/checkin", WellnessCheckin);
 // Analytics (feeds the cockpit)
 openapi.get("/analytics/overview", AnalyticsOverview);
 
-// Export the Hono app
-export default app;
+// Scheduled autonomy: on a Cron Trigger firing, Lumi pulses herself —
+// trades, learns, audits, sweeps, pursues her initiative — unattended.
+import { lumiPulse } from "./engine/lumi";
+
+export default {
+	fetch: app.fetch,
+	async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+		ctx.waitUntil(lumiPulse(env.DB));
+	},
+};

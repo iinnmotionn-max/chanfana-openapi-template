@@ -61,6 +61,46 @@ export class BotsList extends OpenAPIRoute {
 	}
 }
 
+export class BotUpdate extends OpenAPIRoute {
+	public schema = {
+		tags: ["Bots"],
+		summary: "Creator control: pause, resume, or retire a bot",
+		request: {
+			params: z.object({ id: z.coerce.number().int() }),
+			body: contentJson(
+				z.object({
+					status: z.enum(["active", "paused", "retired"]),
+				}),
+			),
+		},
+		responses: {
+			"200": {
+				description: "The updated bot",
+				...contentJson({ success: z.boolean(), result: z.any() }),
+			},
+			"404": { description: "Bot not found" },
+		},
+	};
+
+	public async handle(c: AppContext) {
+		const { params, body } = await this.getValidatedData<typeof this.schema>();
+		const bot = await c.env.DB.prepare("UPDATE bots SET status = ? WHERE id = ? RETURNING *")
+			.bind(body.status, params.id)
+			.first();
+		if (!bot) return c.json({ success: false, errors: [{ code: 4041, message: "Not Found" }] }, 404);
+		await c.env.DB.prepare(
+			"INSERT INTO reports (author, kind, title, body, data, realm) VALUES ('reg', 'command', ?, ?, ?, 'invest')",
+		)
+			.bind(
+				`Creator command: ${String(bot.name)} ${body.status}`,
+				`The creator set bot "${String(bot.name)}" to ${body.status}.`,
+				JSON.stringify({ botId: params.id, status: body.status }),
+			)
+			.run();
+		return { success: true, result: bot };
+	}
+}
+
 export class BotCreate extends OpenAPIRoute {
 	public schema = {
 		tags: ["Bots"],

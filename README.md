@@ -16,6 +16,29 @@ Full design: **[docs/BLUEPRINT.md](docs/BLUEPRINT.md)**.
 | **Tech**     | Dev/tech support diagnostics: system health across every realm             | `GET /realms/tech/status`                      |
 | **Wellness** | Creator check-ins: mood, energy, streaks — the colony works for a human    | `POST /realms/wellness/checkin`                |
 
+## Lumi is alive
+
+Lumi levels up by doing her jobs — four skills (**Insight, Vigilance,
+Engineering, Empathy**), XP from real work, a seeded **quest line**, and
+**situational awareness**: every pulse she assesses her stage, picks the
+initiative closest to done, sets herself a live goal, and pursues it until
+complete. Her skill levels feed back into the engine — Insight widens
+mutation and breeds bigger broods; Engineering raises trading throughput.
+
+- `POST /lumi/pulse` — one heartbeat: trade → learn → audit → sweep → quests → initiative
+- `GET /lumi` — her profile, awareness statement, quests, engine performance
+- `POST /lumi/research {query}` — expedition to the Hugging Face Hub (free API); findings banked in `GET /knowledge`
+- `POST /lumi/scout` — live market snapshot (CoinGecko, free)
+- `GET/POST /auras` + `GET /auras/:id/brief` — the **Aura layer**: personality/design
+  profiles of clients, brands, users, investors so work is personalized.
+  Privacy is structural: notes require consent, the Guardian scans for PII,
+  and **the creator is never profiled**.
+- **Autopilot** in the cockpit pulses her continuously; deployed, a Cron
+  Trigger (`wrangler.jsonc`) pulses her hourly, unattended.
+- **Command Center** in the cockpit: quick signals (`pulse`, `advance 600`,
+  `audit`, `sweep`, `research <q>`, `scout`, `aura add …`, `pause <bot>`,
+  `checkin 4 3 …` — type `help`).
+
 | Agent        | Role                                                        | Where                  |
 | ------------ | ----------------------------------------------------------- | ---------------------- |
 | **Lumi**     | Front-end intellect — the Creator Cockpit                   | `GET /dash`            |

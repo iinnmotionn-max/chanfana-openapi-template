@@ -31,7 +31,7 @@ export const dashHtml = `<!doctype html>
   body {
     background: var(--page); color: var(--ink);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-    padding: 20px; max-width: 1180px; margin: 0 auto;
+    padding: 20px; max-width: 1440px; margin: 0 auto;
   }
   header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
   header h1 { font-size: 20px; font-weight: 650; letter-spacing: 0.2px; }
@@ -126,6 +126,48 @@ export const dashHtml = `<!doctype html>
   }
   .wl-form input::placeholder { color: var(--muted); }
   #btn-checkin { margin-top: 10px; }
+  #btn-autopilot.on { border-color: var(--series-2); color: var(--series-2); }
+  .lumi-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .lumi-level {
+    width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--series-1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 700; color: var(--series-1);
+  }
+  .lumi-xp { flex: 1; min-width: 0; }
+  .lumi-xp .lbl { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .lumi-aware {
+    font-size: 12px; color: var(--ink-2); font-style: italic;
+    border-left: 2px solid var(--series-1); padding-left: 10px; margin-bottom: 10px;
+  }
+  .skill { margin-bottom: 8px; }
+  .skill .row { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-2); }
+  .skill .row b { text-transform: capitalize; color: var(--ink); font-weight: 600; }
+  .skill .row .lvl { color: var(--series-1); font-weight: 600; }
+  .quests { display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; }
+  .quest .row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+  .quest .row .xp { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .quest .detail { font-size: 12px; color: var(--muted); }
+  .quest.done .row .xp { color: var(--good); }
+  .quest.done .bar-fill { background: var(--good); }
+  .cmd-card { margin-bottom: 16px; }
+  .cmd-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .cmd-chips button { padding: 4px 10px; font-size: 12px; border-radius: 999px; }
+  .cmd-row { display: flex; align-items: center; gap: 8px; }
+  .cmd-prompt { color: var(--series-1); font-weight: 700; font-size: 16px; }
+  #cmd-input {
+    flex: 1; background: var(--page); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; font: 13px ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  #cmd-input:focus { outline: none; border-color: var(--series-1); }
+  .cmd-log {
+    margin-top: 10px; max-height: 150px; overflow-y: auto;
+    font: 12px ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink-2);
+  }
+  .cmd-log .line { padding: 2px 0; border-bottom: 1px solid var(--grid); }
+  .cmd-log .line:last-child { border-bottom: none; }
+  .cmd-log .in { color: var(--series-1); }
+  .cmd-log .err { color: var(--critical); }
+  .cmd-log .ok { color: var(--good); }
   .goal { margin-bottom: 12px; }
   .goal .row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
   .goal .detail { font-size: 12px; color: var(--muted); }
@@ -149,11 +191,35 @@ export const dashHtml = `<!doctype html>
     <button id="btn-learn">Learn</button>
     <button id="btn-audit">Audit ledger</button>
     <button id="btn-sweep">Protection sweep</button>
+    <button id="btn-pulse">Pulse</button>
+    <button id="btn-autopilot">Autopilot: off</button>
   </div>
 </header>
 
 <div class="agents" id="agents"></div>
 <div class="realms" id="realms"></div>
+
+<div class="card cmd-card">
+  <h2>COMMAND CENTER — direct signal to the chamber</h2>
+  <div class="cmd-chips" id="cmd-chips"></div>
+  <div class="cmd-row">
+    <span class="cmd-prompt">›</span>
+    <input id="cmd-input" type="text" spellcheck="false" placeholder="signal… (type help for commands)" autocomplete="off">
+    <button id="btn-cmd">Send</button>
+  </div>
+  <div class="cmd-log" id="cmd-log"></div>
+</div>
+
+<div class="grid2b">
+  <div class="card">
+    <h2>LUMI — evolution</h2>
+    <div id="lumi-panel"></div>
+  </div>
+  <div class="card">
+    <h2>QUESTS — Lumi's task line</h2>
+    <div id="quests" class="quests"></div>
+  </div>
+</div>
 
 <div class="section-h">INVEST REALM</div>
 <div class="tiles" id="tiles"></div>
@@ -258,6 +324,8 @@ function render(d) {
   renderChecks(d.checks || []);
   renderTech(d);
   renderWellness(d.wellness || {});
+  renderLumi(d.lumi || null);
+  renderQuests(d.quests || []);
 }
 
 function renderAgents(agents) {
@@ -455,8 +523,41 @@ function renderTech(d) {
     ["Strategies active", strategies.filter(s => s.status === "active").length + " / " + strategies.length],
     ["Reports", reports.length + " recent"],
   ];
+  for (const p of d.perf || []) {
+    rows.push([p.kind.replace("_ms", "") + " time", p.last + " ms (avg " + p.avg + " over " + p.count + ")"]);
+  }
   $("tech").innerHTML = rows.map(r =>
-    '<div class="kv"><span class="k">' + r[0] + '</span><span class="v">' + esc(r[1]) + '</span></div>'
+    '<div class="kv"><span class="k">' + esc(r[0]) + '</span><span class="v">' + esc(r[1]) + '</span></div>'
+  ).join("");
+}
+
+function renderLumi(l) {
+  const el = $("lumi-panel");
+  if (!l || !l.skills) { el.innerHTML = '<div class="empty">Lumi is waking up…</div>'; return; }
+  const span = Math.max(1, l.nextLevelXp - l.prevLevelXp);
+  const pct100 = Math.min(100, Math.round(((l.totalXp - l.prevLevelXp) / span) * 100));
+  let out = '<div class="lumi-head"><div class="lumi-level">' + l.level + '</div>' +
+    '<div class="lumi-xp"><div class="lbl"><span>' + esc(l.awareness ? l.awareness.stage : "") + ' · ' + l.totalXp + ' XP · ' + (l.pulses || 0) + ' pulses</span><span>next level at ' + l.nextLevelXp + '</span></div>' +
+    '<div class="bar-track"><div class="bar-fill" style="width:' + pct100 + '%"></div></div></div></div>';
+  if (l.awareness) out += '<div class="lumi-aware">' + esc(l.awareness.statement) + '</div>';
+  for (const name of ["insight", "vigilance", "engineering", "empathy"]) {
+    const s = l.skills[name] || { xp: 0, level: 1 };
+    const lo = 100 * (s.level - 1) * (s.level - 1), hi = 100 * s.level * s.level;
+    const p = Math.min(100, Math.round(((s.xp - lo) / Math.max(1, hi - lo)) * 100));
+    out += '<div class="skill"><div class="row"><b>' + name + '</b><span><span class="lvl">L' + s.level + '</span> · ' + s.xp + ' XP</span></div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + p + '%"></div></div></div>';
+  }
+  el.innerHTML = out;
+}
+
+function renderQuests(quests) {
+  const el = $("quests");
+  if (!quests.length) { el.innerHTML = '<div class="empty">No quests seeded yet.</div>'; return; }
+  el.innerHTML = quests.map(q =>
+    '<div class="quest ' + (q.status === "done" ? "done" : "") + '"><div class="row"><span>' + esc(q.title) +
+    '</span><span class="xp">' + (q.status === "done" ? "✓ " : "") + '+' + q.xp_reward + ' ' + esc(q.skill) + '</span></div>' +
+    '<div class="detail">' + esc(q.detail) + '</div>' +
+    '<div class="bar-track"><div class="bar-fill" style="width:' + Math.round((Number(q.progress) || 0) * 100) + '%"></div></div></div>'
   ).join("");
 }
 
@@ -510,6 +611,162 @@ $("btn-checkin").onclick = async (e) => {
   await act(e.target, "/realms/wellness/checkin", { mood: moodSel, energy: energySel, note: note });
   $("wl-note").value = "";
 };
+$("btn-pulse").onclick = (e) => act(e.target, "/lumi/pulse");
+
+// ---- Command Center: quick signals straight into the chamber ----
+const CMD_HELP = [
+  "help — this list",
+  "seed — birth the starter colony",
+  "run [ticks] — trading cycle (default 200)",
+  "advance [ticks] — run + learn in one signal",
+  "learn — learning/evolution pass",
+  "pulse [n] — Lumi heartbeat(s): trade, learn, audit, sweep, quests",
+  "audit — invest ledger audit",
+  "sweep — guardian protection sweep",
+  "checkin <mood 1-5> <energy 1-5> [note] — wellness check-in",
+  "goal <title> — add a goal",
+  "pause <bot id> / resume <bot id> / retire <bot id> — bot control",
+  "research <query> — Lumi searches Hugging Face and banks what she finds",
+  "scout — live market snapshot from the real world (CoinGecko)",
+  "aura add <kind> <name> <personality> — profile a client/brand/user/investor",
+  "aura list / aura brief <id> — see auras and their personalization briefs",
+];
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method: method,
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.success === false) {
+    const msg = (data.errors && data.errors[0] && data.errors[0].message) || ("HTTP " + res.status);
+    throw new Error(msg);
+  }
+  return data.result;
+}
+
+async function execCommand(text) {
+  const parts = text.trim().split(/\\s+/);
+  const cmd = (parts[0] || "").toLowerCase();
+  switch (cmd) {
+    case "help": return CMD_HELP.join("\\n");
+    case "seed": { const r = await api("POST", "/colony/seed", {}); return r.created ? "colony born: " + r.strategies + " strategies, " + r.bots + " bots" : "colony already alive"; }
+    case "run": { const t = Math.min(2000, Number(parts[1]) || 200); const r = await api("POST", "/engine/run", { ticks: t }); return "ran " + t + " ticks: " + r.closed + " closed (" + r.wins + "W/" + r.losses + "L), net " + fmt(r.totalPnl); }
+    case "advance": { const t = Math.min(2000, Number(parts[1]) || 200); const r = await api("POST", "/engine/run", { ticks: t, learn: true }); return "advanced " + t + " ticks: " + r.closed + " closed, learned: " + (r.learned ? r.learned.retired.length + " retired, brood " + r.learned.brood : "skipped"); }
+    case "learn": { const r = await api("POST", "/engine/learn", {}); return "learned: " + r.retired.length + " retired, brood " + r.brood + ", win rate " + pct(r.overallWinRate); }
+    case "pulse": {
+      const n = Math.min(10, Number(parts[1]) || 1);
+      let last = null;
+      for (let i = 0; i < n; i++) last = await api("POST", "/lumi/pulse", {});
+      return n + " pulse(s): Lumi L" + last.lumi.level + " · " + last.lumi.totalXp + " XP · " + last.decisions[last.decisions.length ? 0 : 0];
+    }
+    case "audit": { const r = await api("POST", "/realms/invest/audit", {}); return "audit " + (r.ok ? "green" : "FAILED") + ": " + r.checks.map(c => c.name + "=" + c.status).join(", "); }
+    case "sweep": { const r = await api("POST", "/realms/guardian/sweep", {}); return "sweep " + (r.ok ? "clear" : "FAILED") + ": " + r.checks.map(c => c.name + "=" + c.status).join(", "); }
+    case "checkin": {
+      const mood = Number(parts[1]), energy = Number(parts[2]);
+      if (!mood || !energy) throw new Error("usage: checkin <mood 1-5> <energy 1-5> [note]");
+      await api("POST", "/realms/wellness/checkin", { mood: mood, energy: energy, note: parts.slice(3).join(" ") });
+      return "check-in logged: mood " + mood + "/5, energy " + energy + "/5";
+    }
+    case "goal": {
+      const title = parts.slice(1).join(" ");
+      if (!title) throw new Error("usage: goal <title>");
+      await api("POST", "/goals", { title: title });
+      return 'goal added: "' + title + '"';
+    }
+    case "pause": case "resume": case "retire": {
+      const id = Number(parts[1]);
+      if (!id) throw new Error("usage: " + cmd + " <bot id>");
+      const status = cmd === "pause" ? "paused" : cmd === "resume" ? "active" : "retired";
+      const r = await api("PATCH", "/bots/" + id, { status: status });
+      return 'bot "' + r.name + '" is now ' + status;
+    }
+    case "research": {
+      const q = parts.slice(1).join(" ");
+      if (!q) throw new Error("usage: research <query>");
+      const r = await api("POST", "/lumi/research", { query: q });
+      if (!r.found.length) return "expedition came back empty" + (r.errors.length ? " (" + r.errors.join("; ") + ")" : "");
+      return "found " + r.found.length + " (" + r.stored + " new banked):\\n" + r.found.slice(0, 5).map(f => "  " + f.kind + " · " + f.title + " — " + f.detail).join("\\n");
+    }
+    case "scout": {
+      const r = await api("POST", "/lumi/scout", {});
+      if (!r.stored) return "scout failed: " + r.error;
+      return "live market: " + Object.entries(r.prices).map(([c, p]) => c + " $" + Number(p).toLocaleString()).join(", ");
+    }
+    case "aura": {
+      const sub = (parts[1] || "").toLowerCase();
+      if (sub === "list") {
+        const list = await api("GET", "/auras");
+        if (!list.length) return "no auras yet — aura add <kind> <name> <personality>";
+        return list.map(a => "  #" + a.id + " " + a.name + " (" + a.kind + ") — " + (a.personality || "unknown") + (a.consent ? "" : " · no consent")).join("\\n");
+      }
+      if (sub === "brief") {
+        const r = await api("GET", "/auras/" + Number(parts[2]) + "/brief");
+        const b = r.brief;
+        return r.name + " (" + b.archetype + "):\\n  tone: " + b.tone + "\\n  detail: " + b.detailLevel + "\\n  pacing: " + b.pacing + "\\n  palette: " + b.palette + "\\n  risk: " + b.riskFraming;
+      }
+      if (sub === "add") {
+        const kind = (parts[2] || "").toLowerCase(), name = parts[3], personality = parts.slice(4).join(" ");
+        if (!kind || !name) throw new Error("usage: aura add <client|brand|user|investor|partner> <name> <personality>");
+        const r = await api("POST", "/auras", { name: name, kind: kind, personality: personality, consent: false });
+        return 'aura #' + r.id + ' "' + r.name + '" profiled (' + r.brief.archetype + " archetype). Notes need consent.";
+      }
+      throw new Error("usage: aura add|list|brief");
+    }
+    case "": return null;
+    default: throw new Error('unknown signal "' + cmd + '" — type help');
+  }
+}
+
+function cmdLog(text, cls) {
+  const log = $("cmd-log");
+  for (const line of String(text).split("\\n")) {
+    const el = document.createElement("div");
+    el.className = "line " + (cls || "");
+    el.textContent = line;
+    log.prepend(el);
+  }
+  while (log.children.length > 60) log.removeChild(log.lastChild);
+}
+
+async function sendCommand() {
+  const input = $("cmd-input");
+  const text = input.value;
+  if (!text.trim()) return;
+  input.value = "";
+  cmdLog("› " + text, "in");
+  try {
+    const msg = await execCommand(text);
+    if (msg) cmdLog(msg, "ok");
+    await load();
+  } catch (err) {
+    cmdLog(String(err.message || err), "err");
+  }
+}
+$("btn-cmd").onclick = sendCommand;
+$("cmd-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendCommand(); });
+$("cmd-chips").innerHTML = ["pulse", "advance 600", "learn", "audit", "sweep", "scout", "research trading strategies", "help"]
+  .map(c => '<button type="button" data-cmd="' + c + '">' + c + "</button>").join("");
+$("cmd-chips").querySelectorAll("button").forEach(b => {
+  b.onclick = () => { $("cmd-input").value = b.dataset.cmd; sendCommand(); };
+});
+
+// Autopilot: Lumi pulses herself — trade, learn, audit, sweep, quests — hands off.
+let autopilot = false, pulsing = false;
+async function autoPulse() {
+  if (!autopilot || pulsing) return;
+  pulsing = true;
+  try { await fetch("/lumi/pulse", { method: "POST" }); await load(); }
+  catch (e) {} finally { pulsing = false; }
+}
+$("btn-autopilot").onclick = (e) => {
+  autopilot = !autopilot;
+  e.target.textContent = "Autopilot: " + (autopilot ? "on" : "off");
+  e.target.classList.toggle("on", autopilot);
+  if (autopilot) autoPulse();
+};
+setInterval(autoPulse, 15000);
 
 load();
 setInterval(load, 5000);
