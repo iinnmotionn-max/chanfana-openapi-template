@@ -1,0 +1,46 @@
+# Auto-deploy the Lumi colony to Cloudflare Workers.
+#
+# One-time setup (so this can run):
+#   1. Create your D1 database and paste its id into wrangler.jsonc:
+#        npx wrangler d1 create openapi-template-db
+#   2. Create a Cloudflare API token (Workers Scripts: Edit, D1: Edit,
+#        Account Settings: Read) at https://dash.cloudflare.com/profile/api-tokens
+#   3. Add repo secrets (Settings → Secrets and variables → Actions):
+#        CLOUDFLARE_API_TOKEN   — the token from step 2
+#        CLOUDFLARE_ACCOUNT_ID  — your Cloudflare account id
+#
+# After that, every push to main runs the tests, applies remote D1 migrations,
+# and deploys — "go live" becomes a merge. You can also run it by hand from the
+# Actions tab (workflow_dispatch).
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Runs `wrangler deploy --dry-run` (no auth) + the full Vitest suite.
+      - name: Test
+        run: npm test
+
+      # `npm run deploy` = predeploy (apply remote D1 migrations) then deploy.
+      - name: Deploy
+        run: npm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

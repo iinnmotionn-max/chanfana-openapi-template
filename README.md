@@ -91,6 +91,17 @@ npm run deploy                                # applies remote migrations, then 
 
 For unattended self-training, add a [Cron Trigger](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
 that POSTs `/engine/run` and `/engine/learn` on a schedule (roadmap goal #4).
+(One is already configured in `wrangler.jsonc` — Lumi pulses herself hourly on deploy.)
+
+### Auto-deploy (CI)
+
+`.github/workflows/deploy.yml` deploys on every push to `main` once you add two
+repo secrets — `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` — and set your
+D1 `database_id` in `wrangler.jsonc`. Then "go live" is a merge.
+`.github/workflows/ci.yml` runs typecheck + the full test suite on every PR.
+
+To publish the AETHER token on Sui, run `./sui/publish.sh testnet` (then
+`mainnet`) with your own wallet — see `docs/AETHER_SUI.md`.
 
 ## Testing
 
