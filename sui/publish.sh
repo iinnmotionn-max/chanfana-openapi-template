@@ -19,9 +19,23 @@ set -euo pipefail
 
 NETWORK="${1:-testnet}"
 GAS_BUDGET="${GAS_BUDGET:-200000000}"
-HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/.." && pwd)"
 
+# Locate the Move package robustly — works whether the script is executed,
+# sourced, or run from another directory (BASH_SOURCE/$0 can be unreliable).
+SELF="${BASH_SOURCE[0]:-$0}"
+HERE="$(cd "$(dirname "$SELF")" 2>/dev/null && pwd || true)"
+PKG=""
+for cand in "$HERE/aether" "./sui/aether" "$(git rev-parse --show-toplevel 2>/dev/null)/sui/aether"; do
+  if [ -f "$cand/Move.toml" ]; then PKG="$(cd "$cand" && pwd)"; break; fi
+done
+if [ -z "$PKG" ]; then
+  echo "!! Could not find sui/aether/Move.toml."
+  echo "   Run from the repo root:  bash sui/publish.sh $NETWORK"
+  exit 1
+fi
+ROOT="$(cd "$PKG/../.." && pwd)"
+
+echo "==> Package: $PKG"
 echo "==> Target network: $NETWORK"
 sui client switch --env "$NETWORK" >/dev/null 2>&1 || {
   echo "No '$NETWORK' env configured in the Sui CLI. Add one, e.g.:"
@@ -36,10 +50,10 @@ if [ "$NETWORK" != "mainnet" ]; then
 fi
 
 echo "==> Building the Move package…"
-( cd "$HERE/aether" && sui move build )
+( cd "$PKG" && sui move build )
 
 echo "==> Publishing (this signs a real transaction and spends gas)…"
-OUT="$(cd "$HERE/aether" && sui client publish --gas-budget "$GAS_BUDGET" --json)"
+OUT="$(cd "$PKG" && sui client publish --gas-budget "$GAS_BUDGET" --json)"
 
 PACKAGE_ID="$(echo "$OUT" | jq -r '.objectChanges[] | select(.type=="published") | .packageId')"
 TREASURY_CAP="$(echo "$OUT" | jq -r '.objectChanges[] | select(.type=="created" and (.objectType|test("TreasuryCap"))) | .objectId' | head -n1)"
