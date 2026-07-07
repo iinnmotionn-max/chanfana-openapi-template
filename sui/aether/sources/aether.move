@@ -8,6 +8,10 @@
 /// This mirrors the off-chain ledger in the Worker (src/engine/token.ts): the
 /// Databank is the fast operational ledger; this is the on-chain settlement
 /// layer the adapter (src/engine/sui.ts) links to once published.
+// `create_currency` is the stable, widely-used coin API. Its newer
+// `coin_registry` replacement isn't required here, so we silence the
+// deprecation and keep the module simple and compatible.
+#[allow(deprecated_usage)]
 module aether::aether {
     use sui::coin::{Self, TreasuryCap, Coin};
     use sui::url;
@@ -41,13 +45,13 @@ module aether::aether {
     }
 
     /// Mint new AETHER to a recipient. Requires the TreasuryCap (treasury only).
-    public entry fun mint(cap: &mut TreasuryCap<AETHER>, amount: u64, recipient: address, ctx: &mut TxContext) {
+    public fun mint(cap: &mut TreasuryCap<AETHER>, amount: u64, recipient: address, ctx: &mut TxContext) {
         let minted = coin::mint(cap, amount, ctx);
         transfer::public_transfer(minted, recipient);
     }
 
     /// Burn AETHER back to the reserve. Requires the TreasuryCap.
-    public entry fun burn(cap: &mut TreasuryCap<AETHER>, coin: Coin<AETHER>) {
+    public fun burn(cap: &mut TreasuryCap<AETHER>, coin: Coin<AETHER>) {
         coin::burn(cap, coin);
     }
 
