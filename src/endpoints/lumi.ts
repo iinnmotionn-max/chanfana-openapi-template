@@ -5,6 +5,7 @@ import { z } from "zod";
 import { AppContext } from "../types";
 import { lumiPulse, perfSummary, selfAssess } from "../engine/lumi";
 import { research, scoutMarket } from "../engine/knowledge";
+import { curriculumStatus, runStudy } from "../engine/training";
 
 export class LumiStatus extends OpenAPIRoute {
 	public schema = {
@@ -88,6 +89,41 @@ export class LumiScout extends OpenAPIRoute {
 	public async handle(c: AppContext) {
 		const result = await scoutMarket(c.env.DB);
 		return { success: true, result };
+	}
+}
+
+export class LumiTrain extends OpenAPIRoute {
+	public schema = {
+		tags: ["Lumi"],
+		summary: "Study session: Lumi & Aether study the Invest trading curriculum",
+		responses: {
+			"200": {
+				description: "What was studied and how they grew",
+				...contentJson({ success: z.boolean(), result: z.any() }),
+			},
+		},
+	};
+
+	public async handle(c: AppContext) {
+		const result = await runStudy(c.env.DB);
+		return { success: true, result };
+	}
+}
+
+export class LumiCurriculum extends OpenAPIRoute {
+	public schema = {
+		tags: ["Lumi"],
+		summary: "The trading curriculum and how much of it Aether has taught",
+		responses: {
+			"200": {
+				description: "Curriculum progress",
+				...contentJson({ success: z.boolean(), result: z.any() }),
+			},
+		},
+	};
+
+	public async handle(c: AppContext) {
+		return { success: true, result: await curriculumStatus(c.env.DB) };
 	}
 }
 

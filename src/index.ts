@@ -15,7 +15,7 @@ import {
 	WellnessCheckin,
 	WellnessSummary,
 } from "./endpoints/realms";
-import { KnowledgeList, LumiPulse, LumiResearch, LumiScout, LumiStatus } from "./endpoints/lumi";
+import { KnowledgeList, LumiCurriculum, LumiPulse, LumiResearch, LumiScout, LumiStatus, LumiTrain } from "./endpoints/lumi";
 import { AuraBrief, AuraCreate, AuraList } from "./endpoints/auras";
 import { RiskConfig, RiskHalt, RiskResume, RiskStatusEndpoint } from "./endpoints/risk";
 import { MarketFeed, MarketList } from "./endpoints/market";
@@ -99,6 +99,10 @@ openapi.post("/lumi/pulse", LumiPulse);
 openapi.post("/lumi/research", LumiResearch);
 openapi.post("/lumi/scout", LumiScout);
 openapi.get("/knowledge", KnowledgeList);
+
+// Training — Lumi & Aether study the Invest trading curriculum
+openapi.post("/lumi/train", LumiTrain);
+openapi.get("/lumi/curriculum", LumiCurriculum);
 
 // Aura layer: personality + design profiles (consent-gated, never the creator)
 openapi.get("/auras", AuraList);

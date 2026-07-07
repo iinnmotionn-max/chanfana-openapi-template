@@ -178,7 +178,7 @@ describe("Lumi Colony — full loop", () => {
 		expect(r.colony.tick).toBe(300);
 		expect(r.colony.closedTrades).toBeGreaterThan(0);
 		expect(r.colony.equity).toBeGreaterThan(0);
-		expect(r.agents.length).toBe(5);
+		expect(r.agents.length).toBe(6);
 		expect(r.bots.length).toBe(3);
 		expect(r.strategies.length).toBe(3);
 		expect(r.equityCurve.length).toBeGreaterThan(1);

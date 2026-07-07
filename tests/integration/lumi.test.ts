@@ -25,7 +25,7 @@ describe("Lumi Colony — Lumi's evolution", () => {
 		for (const skill of ["insight", "vigilance", "engineering", "empathy"]) {
 			expect(r.skills[skill]).toEqual({ xp: 0, level: 1 });
 		}
-		expect(r.quests.length).toBe(12);
+		expect(r.quests.length).toBe(13);
 		expect(r.quests.every((q: any) => q.status === "open")).toBe(true);
 	});
 
@@ -173,7 +173,7 @@ describe("Lumi Colony — Lumi's evolution", () => {
 		const overview = await get("/analytics/overview");
 		const r = overview.body.result;
 		expect(r.lumi.totalXp).toBeGreaterThan(0);
-		expect(r.quests.length).toBe(12);
+		expect(r.quests.length).toBe(13);
 		expect(r.perf.length).toBeGreaterThan(0);
 		expect(r.quests.some((q: any) => q.status === "done")).toBe(true);
 	});

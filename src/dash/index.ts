@@ -193,6 +193,16 @@ export const dashHtml = `<!doctype html>
   .markets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
   .mkt { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
   .mkt b { color: var(--ink); }
+  #training-card { margin-bottom: 16px; }
+  .train-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .train-prog { font-size: 13px; color: var(--ink-2); }
+  .train-prog b { color: var(--ink); }
+  .lessons-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 14px; margin-top: 12px; }
+  .lesson { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .lesson .lp { color: var(--muted); }
+  .lesson.learned { color: var(--ink-2); }
+  .lesson.learned .lp { color: var(--good); }
+  .lesson .lt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cmd-card { margin-bottom: 16px; }
   .cmd-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
   .cmd-chips button { padding: 4px 10px; font-size: 12px; border-radius: 999px; }
@@ -263,6 +273,11 @@ export const dashHtml = `<!doctype html>
     <h2>QUESTS — Lumi's task line</h2>
     <div id="quests" class="quests"></div>
   </div>
+</div>
+
+<div class="card" id="training-card">
+  <h2>AETHER'S SCHOOL — training on the science of trades (Invest realm)</h2>
+  <div id="training-panel"></div>
 </div>
 
 <div class="section-h">INVEST REALM</div>
@@ -387,7 +402,25 @@ function render(d) {
   renderLumi(d.lumi || null);
   renderQuests(d.quests || []);
   renderRisk(d.risk || null, d.markets || []);
+  renderTraining(d.training || null);
   firstPaint = false;
+}
+
+function renderTraining(t) {
+  const el = $("training-panel");
+  if (!t) { el.innerHTML = '<div class="empty">Curriculum loading…</div>'; return; }
+  const done = Number(t.studied) || 0, total = Number(t.total) || 1;
+  let out = '<div class="train-head">' +
+    '<span class="train-prog"><b>' + done + '</b> / ' + total + ' lessons taught</span>' +
+    '<button id="btn-train">Study a lesson</button></div>' +
+    '<div class="bar-track"><div class="bar-fill" style="width:' + Math.round((done / total) * 100) + '%"></div></div>' +
+    '<div class="lessons-grid">' + (t.lessons || []).map(l =>
+      '<div class="lesson ' + (l.studied ? "learned" : "") + '"><span class="lp">' + (l.studied ? "✓" : "○") + '</span>' +
+      '<span class="lt" title="' + esc(l.summary) + '">' + esc(l.title) + '</span></div>'
+    ).join("") + '</div>';
+  el.innerHTML = out;
+  const btn = $("btn-train");
+  if (btn) btn.onclick = (e) => act(e.target, "/lumi/train");
 }
 
 function renderRisk(r, markets) {
@@ -731,6 +764,7 @@ const CMD_HELP = [
   "pause <bot id> / resume <bot id> / retire <bot id> — bot control",
   "research <query> — Lumi searches Hugging Face and banks what she finds",
   "scout — live market snapshot from the real world (CoinGecko)",
+  "train — Lumi & Aether study the next trading lesson",
   "aura add <kind> <name> <personality> — profile a client/brand/user/investor",
   "aura list / aura brief <id> — see auras and their personalization briefs",
 ];
@@ -821,6 +855,12 @@ async function execCommand(text) {
       }
       throw new Error("usage: aura add|list|brief");
     }
+    case "train": case "study": {
+      const r = await api("POST", "/lumi/train", {});
+      return r.complete && r.topic === "review"
+        ? "curriculum complete — Aether is reviewing"
+        : 'studied "' + r.topic + '" (' + r.lessonsStudied + "/" + r.curriculumTotal + ") — " + r.note;
+    }
     case "": return null;
     default: throw new Error('unknown signal "' + cmd + '" — type help');
   }
@@ -853,7 +893,7 @@ async function sendCommand() {
 }
 $("btn-cmd").onclick = sendCommand;
 $("cmd-input").addEventListener("keydown", (e) => { if (e.key === "Enter") sendCommand(); });
-$("cmd-chips").innerHTML = ["pulse", "advance 600", "learn", "audit", "sweep", "scout", "research trading strategies", "help"]
+$("cmd-chips").innerHTML = ["pulse", "advance 600", "learn", "train", "audit", "sweep", "scout", "help"]
   .map(c => '<button type="button" data-cmd="' + c + '">' + c + "</button>").join("");
 $("cmd-chips").querySelectorAll("button").forEach(b => {
   b.onclick = () => { $("cmd-input").value = b.dataset.cmd; sendCommand(); };

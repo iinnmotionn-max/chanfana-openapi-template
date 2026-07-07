@@ -8,6 +8,7 @@ import { runLearning } from "./learning";
 import { auditInvest, recordAudit } from "./integrity";
 import { runSweep } from "./guardian";
 import { research, scoutMarket } from "./knowledge";
+import { runStudy } from "./training";
 
 export type SkillName = "insight" | "vigilance" | "engineering" | "empathy";
 
@@ -97,7 +98,7 @@ export async function perfSummary(db: D1Database): Promise<PerfStat[]> {
 // Evaluate every open quest against the real Databank state; completed quests
 // pay out XP and file a report. Returns quests that completed this pass.
 export async function checkQuests(db: D1Database): Promise<{ title: string; skill: SkillName; xp: number }[]> {
-	const [bots, closed, retired, maxGen, equity, cleanAudits, cleanSweeps, checkins, tick, knowledge, snapshots, auras] = await Promise.all([
+	const [bots, closed, retired, maxGen, equity, cleanAudits, cleanSweeps, checkins, tick, knowledge, snapshots, auras, lessons] = await Promise.all([
 		db.prepare("SELECT COUNT(*) as v FROM bots").first<{ v: number }>(),
 		db.prepare("SELECT COUNT(*) as v FROM trades WHERE outcome != 'open'").first<{ v: number }>(),
 		db.prepare("SELECT COUNT(*) as v FROM strategies WHERE status = 'retired'").first<{ v: number }>(),
@@ -112,6 +113,7 @@ export async function checkQuests(db: D1Database): Promise<{ title: string; skil
 		db.prepare("SELECT COUNT(*) as v FROM knowledge").first<{ v: number }>(),
 		db.prepare("SELECT COUNT(*) as v FROM knowledge WHERE kind = 'market-snapshot'").first<{ v: number }>(),
 		db.prepare("SELECT COUNT(*) as v FROM auras").first<{ v: number }>(),
+		db.prepare("SELECT COUNT(*) as v FROM knowledge WHERE kind = 'lesson'").first<{ v: number }>(),
 	]);
 	const state: Record<string, number> = {
 		bots: bots?.v ?? 0,
@@ -126,6 +128,7 @@ export async function checkQuests(db: D1Database): Promise<{ title: string; skil
 		knowledge_items: knowledge?.v ?? 0,
 		market_snapshots: snapshots?.v ?? 0,
 		auras: auras?.v ?? 0,
+		lessons: lessons?.v ?? 0,
 	};
 
 	const open = (
@@ -200,6 +203,7 @@ const ACTION_FOR_METRIC: Record<string, string> = {
 	knowledge_items: "research the outside world",
 	market_snapshots: "scout live market prices",
 	auras: "wait for the creator to profile a client or investor",
+	lessons: "study the trading curriculum with Aether",
 };
 
 export async function selfAssess(db: D1Database): Promise<{ lumi: LumiProfile; awareness: Awareness }> {
@@ -296,6 +300,10 @@ async function pursueInitiative(db: D1Database, awareness: Awareness, pulses: nu
 		case "market_tick": {
 			const extra = await runCycle(db, 300);
 			return `initiative: traded 300 extra ticks (${extra.closed} closed) toward "${initiative.quest}"`;
+		}
+		case "lessons": {
+			const study = await runStudy(db);
+			return `initiative: studied "${study.topic}" with Aether (${study.lessonsStudied}/${study.curriculumTotal})`;
 		}
 		case "checkins":
 			return "initiative: waiting on the creator's check-in";

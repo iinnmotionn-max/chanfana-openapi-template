@@ -108,8 +108,57 @@ describe("Build plan — live feed, risk gates, win-rate filter", () => {
 		expect(feed.status).toBe(404);
 	});
 
+	// ---- Aether + training (Invest realm) ----
+	it("Aether is a core agent with a full DNA profile", async () => {
+		const agents = await get("/agents");
+		const aether = agents.body.result.find((a: any) => a.name === "aether");
+		expect(aether).toBeTruthy();
+		expect(aether.role).toBe("markets-scholar");
+		// Full DNA swab: a complete trait profile.
+		for (const trait of ["curiosity", "discipline", "patience", "risk", "rigor"]) {
+			expect(typeof aether.dna[trait]).toBe("number");
+		}
+	});
+
+	it("bots inherit Aether's DNA (rigor) through the colony merge", async () => {
+		await post("/colony/seed");
+		const bots = await get("/bots");
+		// colonyDna averages every active agent's DNA, so Aether's 'rigor' trait
+		// now flows into every bot's soul.
+		expect(bots.body.result[0].soul).toHaveProperty("rigor");
+	});
+
+	it("training: Lumi and Aether study the curriculum, banking lessons in the Invest realm", async () => {
+		const before = await get("/lumi/curriculum");
+		expect(before.body.result.total).toBeGreaterThanOrEqual(8);
+		expect(before.body.result.studied).toBe(0);
+
+		const lumiBefore = await get("/lumi");
+		const study = await post("/lumi/train");
+		expect(study.status).toBe(200);
+		expect(study.body.result.lessonsStudied).toBe(1);
+		expect(study.body.result.topic.length).toBeGreaterThan(0);
+
+		// A lesson is banked and Lumi's Insight grew.
+		const after = await get("/lumi/curriculum");
+		expect(after.body.result.studied).toBe(1);
+		const lumiAfter = await get("/lumi");
+		expect(lumiAfter.body.result.skills.insight.xp).toBeGreaterThan(lumiBefore.body.result.skills.insight.xp);
+
+		// Aether authored the study report, in the Invest realm.
+		const reports = await get("/reports");
+		const studyReport = reports.body.result.find((r: any) => r.author === "aether" && r.kind === "study");
+		expect(studyReport).toBeTruthy();
+		expect(studyReport.realm).toBe("invest");
+
+		// Distinct topics don't double-count.
+		await post("/lumi/train");
+		const two = await get("/lumi/curriculum");
+		expect(two.body.result.studied).toBe(2);
+	});
+
 	// ---- Analytics surfaces the new state ----
-	it("analytics overview includes risk and markets", async () => {
+	it("analytics overview includes risk, markets, and training", async () => {
 		await post("/colony/seed");
 		await post("/engine/run", { ticks: 200 });
 		const overview = await get("/analytics/overview");
@@ -117,5 +166,7 @@ describe("Build plan — live feed, risk gates, win-rate filter", () => {
 		expect(typeof overview.body.result.risk.halted).toBe("boolean");
 		expect(Array.isArray(overview.body.result.markets)).toBe(true);
 		expect(overview.body.result.markets.length).toBeGreaterThan(0);
+		expect(overview.body.result.training).toBeTruthy();
+		expect(overview.body.result.training.total).toBeGreaterThanOrEqual(8);
 	});
 });
