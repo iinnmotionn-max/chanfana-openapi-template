@@ -32,6 +32,35 @@ export const dashHtml = `<!doctype html>
     background: var(--page); color: var(--ink);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
     padding: 20px; max-width: 1440px; margin: 0 auto;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  /* Aurora backdrop — subtle, behind everything */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(700px 320px at 12% -6%, rgba(57,135,229,0.13), transparent 60%),
+      radial-gradient(800px 380px at 88% -10%, rgba(25,158,112,0.09), transparent 60%);
+  }
+  button { transition: border-color 0.2s, color 0.2s, transform 0.12s, box-shadow 0.3s; }
+  button:active { transform: scale(0.96); }
+  .card, .tile, .realm { transition: border-color 0.3s, transform 0.25s, box-shadow 0.3s; }
+  .realm:hover { transform: translateY(-2px); border-color: var(--series-1); box-shadow: 0 8px 22px rgba(0,0,0,0.35); }
+  .tile:hover { border-color: rgba(57,135,229,0.35); }
+  @keyframes breathe { 0%, 100% { opacity: 0.7; transform: scale(1); } 50% { opacity: 1; transform: scale(1.3); } }
+  @keyframes drawline { to { stroke-dashoffset: 0; } }
+  @keyframes livedot { 0%, 100% { r: 4; opacity: 1; } 50% { r: 6; opacity: 0.6; } }
+  @keyframes slidein { from { opacity: 0; transform: translateX(-8px); } }
+  @keyframes risein { from { opacity: 0; transform: translateY(8px); } }
+  @keyframes apglow { 50% { box-shadow: 0 0 12px rgba(25,158,112,0.55); } }
+  @keyframes alertglow { 50% { box-shadow: 0 0 8px var(--critical); } }
+  .eq-path.draw { stroke-dasharray: 4000; stroke-dashoffset: 4000; animation: drawline 1.4s ease-out forwards; }
+  .eq-live { animation: livedot 2.4s ease-in-out infinite; }
+  .feed.anim .report { animation: slidein 0.35s ease-out both; }
+  .card, .tile { animation: risein 0.4s ease-out both; }
+  .pill.alert { animation: alertglow 1.6s ease-in-out infinite; }
+  svg .wr-bar, .bar-track .bar-fill { transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
   }
   header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
   header h1 { font-size: 20px; font-weight: 650; letter-spacing: 0.2px; }
@@ -48,7 +77,7 @@ export const dashHtml = `<!doctype html>
     background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
     padding: 4px 12px; font-size: 12px; color: var(--ink-2); display: flex; align-items: center; gap: 7px;
   }
-  .agent .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+  .agent .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); animation: breathe 3s ease-in-out infinite; }
   .agent b { color: var(--ink); font-weight: 600; text-transform: capitalize; }
   .realms { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
   @media (max-width: 1000px) { .realms { grid-template-columns: 1fr 1fr; } }
@@ -126,12 +155,18 @@ export const dashHtml = `<!doctype html>
   }
   .wl-form input::placeholder { color: var(--muted); }
   #btn-checkin { margin-top: 10px; }
-  #btn-autopilot.on { border-color: var(--series-2); color: var(--series-2); }
+  #btn-autopilot.on { border-color: var(--series-2); color: var(--series-2); animation: apglow 2s ease-in-out infinite; }
   .lumi-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  /* Level badge doubles as an XP progress ring (conic fill set inline) */
   .lumi-level {
-    width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--series-1);
+    width: 48px; height: 48px; border-radius: 50%; flex: none;
     display: flex; align-items: center; justify-content: center;
-    font-size: 17px; font-weight: 700; color: var(--series-1);
+    background: conic-gradient(var(--series-1) 0%, var(--grid) 0);
+  }
+  .lumi-level span {
+    width: 38px; height: 38px; border-radius: 50%; background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: var(--series-1);
   }
   .lumi-xp { flex: 1; min-width: 0; }
   .lumi-xp .lbl { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; margin-bottom: 4px; }
@@ -298,6 +333,9 @@ const $ = (id) => document.getElementById(id);
 const fmt = (n, d = 2) => Number(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 const pct = (n) => (n * 100).toFixed(1) + "%";
 let equityPoints = [];
+let firstPaint = true;      // entrance animations play once, not on every refresh
+let lastCurveLen = -1;      // redraw the line animation only when the tape grows
+let lastReportId = -1;      // slide-in the feed only when something new arrived
 
 async function load() {
   try {
@@ -326,6 +364,7 @@ function render(d) {
   renderWellness(d.wellness || {});
   renderLumi(d.lumi || null);
   renderQuests(d.quests || []);
+  firstPaint = false;
 }
 
 function renderAgents(agents) {
@@ -388,9 +427,21 @@ function renderEquity(curve) {
   }
   const path = curve.map((p, i) => (i ? "L" : "M") + X(p.tick).toFixed(1) + " " + Y(p.equity).toFixed(1)).join(" ");
   const base = Y(curve[0].equity);
-  svg.innerHTML = grid + labels +
+  const lastP = curve[curve.length - 1];
+  const area = path + " L " + X(lastP.tick).toFixed(1) + " " + (H - padB) + " L " + X(curve[0].tick).toFixed(1) + " " + (H - padB) + " Z";
+  const redraw = curve.length !== lastCurveLen;
+  lastCurveLen = curve.length;
+  svg.innerHTML =
+    '<defs><linearGradient id="eqg" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="var(--series-1)" stop-opacity="0.22"/>' +
+    '<stop offset="1" stop-color="var(--series-1)" stop-opacity="0"/></linearGradient></defs>' +
+    grid + labels +
+    '<text x="' + padL + '" y="' + (H - 6) + '">' + xMin.toLocaleString() + '</text>' +
+    '<text x="' + (W - padR) + '" y="' + (H - 6) + '" text-anchor="end">tick ' + xMax.toLocaleString() + "</text>" +
     '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + base + '" y2="' + base + '" stroke="var(--baseline)" stroke-dasharray="3 4" stroke-width="1"/>' +
-    '<path d="' + path + '" fill="none" stroke="var(--series-1)" stroke-width="2" vector-effect="non-scaling-stroke"/>' +
+    '<path d="' + area + '" fill="url(#eqg)" stroke="none"/>' +
+    '<path d="' + path + '" class="eq-path' + (redraw ? " draw" : "") + '" fill="none" stroke="var(--series-1)" stroke-width="2" vector-effect="non-scaling-stroke"/>' +
+    '<circle class="eq-live" cx="' + X(lastP.tick).toFixed(1) + '" cy="' + Y(lastP.equity).toFixed(1) + '" r="4" fill="var(--series-1)" stroke="var(--surface)" stroke-width="2"/>' +
     '<circle id="eq-dot" r="4" fill="var(--series-1)" stroke="var(--surface)" stroke-width="2" style="display:none"/>' +
     '<line id="eq-cross" y1="' + padT + '" y2="' + (H - padB) + '" stroke="var(--baseline)" stroke-width="1" style="display:none"/>';
   equityPoints = curve.map(p => ({ x: X(p.tick), y: Y(p.equity), tick: p.tick, equity: p.equity }));
@@ -472,6 +523,9 @@ function renderStrategies(strategies) {
 function renderFeed(reports) {
   const feed = $("feed");
   if (!reports.length) { feed.innerHTML = '<div class="empty">No reports yet — the Reporter files one after every cycle.</div>'; return; }
+  const newest = Number(reports[0].id) || 0;
+  feed.classList.toggle("anim", firstPaint || newest !== lastReportId);
+  lastReportId = newest;
   feed.innerHTML = reports.map(r =>
     '<div class="report ' + esc(r.kind) + '"><div class="who">' + esc(r.author) + " · " +
     (r.realm ? esc(r.realm) + " · " : "") + esc(r.kind) + " · " + esc(r.created_at) + '</div>' +
@@ -536,7 +590,7 @@ function renderLumi(l) {
   if (!l || !l.skills) { el.innerHTML = '<div class="empty">Lumi is waking up…</div>'; return; }
   const span = Math.max(1, l.nextLevelXp - l.prevLevelXp);
   const pct100 = Math.min(100, Math.round(((l.totalXp - l.prevLevelXp) / span) * 100));
-  let out = '<div class="lumi-head"><div class="lumi-level">' + l.level + '</div>' +
+  let out = '<div class="lumi-head"><div class="lumi-level" style="background:conic-gradient(var(--series-1) ' + pct100 + '%, var(--grid) 0)"><span>' + l.level + '</span></div>' +
     '<div class="lumi-xp"><div class="lbl"><span>' + esc(l.awareness ? l.awareness.stage : "") + ' · ' + l.totalXp + ' XP · ' + (l.pulses || 0) + ' pulses</span><span>next level at ' + l.nextLevelXp + '</span></div>' +
     '<div class="bar-track"><div class="bar-fill" style="width:' + pct100 + '%"></div></div></div></div>';
   if (l.awareness) out += '<div class="lumi-aware">' + esc(l.awareness.statement) + '</div>';
