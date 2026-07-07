@@ -23,6 +23,8 @@ export const dashHtml = `<!doctype html>
     --border: rgba(255,255,255,0.10);
     --series-1: #3987e5;   /* blue  — equity, primary series */
     --series-2: #199e70;   /* aqua  — secondary accents */
+    --series-3: #c98500;   /* yellow — categorical slot 3 */
+    --series-4: #9085e9;   /* violet — categorical slot 4 */
     --good: #0ca30c;
     --critical: #d03b3b;
     --warning: #fab219;
@@ -203,6 +205,27 @@ export const dashHtml = `<!doctype html>
   .lesson.learned { color: var(--ink-2); }
   .lesson.learned .lp { color: var(--good); }
   .lesson .lt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #aether-card { margin-bottom: 16px; }
+  .aeth-top { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
+  .aeth-hero .n { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+  .aeth-hero .n .sym { font-size: 15px; color: var(--series-4); font-weight: 650; margin-left: 6px; }
+  .aeth-hero .lbl { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .chain-badge { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; padding: 3px 9px; border-radius: 6px;
+    color: var(--series-1); border: 1px solid var(--series-1); text-transform: uppercase; }
+  .aeth-recon { margin-left: auto; }
+  .supply-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; gap: 2px; background: var(--grid); margin-bottom: 6px; }
+  .supply-seg { height: 100%; transition: width 0.8s cubic-bezier(0.22,1,0.36,1); }
+  .aeth-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  .aeth-legend .lg { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
+  .aeth-legend .sw { width: 10px; height: 10px; border-radius: 3px; }
+  .aeth-legend .lg b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .aeth-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 760px) { .aeth-cols { grid-template-columns: 1fr; } }
+  .aeth-cols h3 { font-size: 11px; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; }
+  .aeth-tx { font-size: 12px; color: var(--ink-2); padding: 4px 0; border-bottom: 1px solid var(--grid); display: flex; gap: 6px; align-items: baseline; }
+  .aeth-tx:last-child { border-bottom: none; }
+  .aeth-tx .amt { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .aeth-tx .k { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
   .cmd-card { margin-bottom: 16px; }
   .cmd-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
   .cmd-chips button { padding: 4px 10px; font-size: 12px; border-radius: 999px; }
@@ -278,6 +301,11 @@ export const dashHtml = `<!doctype html>
 <div class="card" id="training-card">
   <h2>AETHER'S SCHOOL — training on the science of trades (Invest realm)</h2>
   <div id="training-panel"></div>
+</div>
+
+<div class="card" id="aether-card">
+  <h2>AETHER TOKEN — the colony's AI-credit currency</h2>
+  <div id="aether-panel"></div>
 </div>
 
 <div class="section-h">INVEST REALM</div>
@@ -403,7 +431,49 @@ function render(d) {
   renderQuests(d.quests || []);
   renderRisk(d.risk || null, d.markets || []);
   renderTraining(d.training || null);
+  renderAether(d.aether || null);
   firstPaint = false;
+}
+
+// Fixed-order categorical hues by account (never cycled): treasury, creator,
+// lumi, aether, then a neutral fallback.
+const AETH_COLORS = { treasury: "var(--series-1)", creator: "var(--series-2)", lumi: "var(--series-3)", aether: "var(--series-4)" };
+function aethColor(owner, i) { return AETH_COLORS[owner] || ["var(--series-1)","var(--series-2)","var(--series-3)","var(--series-4)"][i % 4]; }
+
+function renderAether(a) {
+  const el = $("aether-panel");
+  if (!a || !a.accounts) { el.innerHTML = '<div class="empty">Token ledger loading…</div>'; return; }
+  const supply = Number(a.totalSupply) || 1;
+  const accts = a.accounts.slice();
+
+  const segs = accts.map((ac, i) =>
+    '<div class="supply-seg" style="width:' + ((Number(ac.balance) / supply) * 100).toFixed(2) + '%;background:' + aethColor(ac.owner, i) + '" title="' + esc(ac.owner) + '"></div>'
+  ).join("");
+  const legend = accts.map((ac, i) =>
+    '<span class="lg"><span class="sw" style="background:' + aethColor(ac.owner, i) + '"></span>' +
+    esc(ac.owner) + ' <b>' + fmt(ac.balance, 0) + '</b> · ' + ((Number(ac.balance) / supply) * 100).toFixed(1) + '%</span>'
+  ).join("");
+  const ledger = (a.ledger || []).map(t =>
+    '<div class="aeth-tx"><span class="k">' + esc(t.kind) + '</span>' + esc(t.from_owner) + ' → ' + esc(t.to_owner) +
+    '<span class="amt">' + fmt(t.amount, 0) + '</span></div>'
+  ).join("");
+
+  el.innerHTML =
+    '<div class="aeth-top">' +
+      '<div class="aeth-hero"><div class="n">' + fmt(a.circulating, 0) + '<span class="sym">' + esc(a.symbol) + '</span></div>' +
+        '<div class="lbl">circulating of ' + fmt(a.totalSupply, 0) + ' supply · treasury holds ' + fmt(a.treasury, 0) + '</div></div>' +
+      '<span class="chain-badge">' + esc(a.chain) + '</span>' +
+      '<span class="aeth-recon pill ' + (a.reconciled ? "pass" : "fail") + '">' + (a.reconciled ? "supply reconciled" : "SUPPLY DRIFT") + '</span>' +
+    '</div>' +
+    '<div class="supply-bar">' + segs + '</div>' +
+    '<div class="aeth-legend">' + legend + '</div>' +
+    '<div class="aeth-cols">' +
+      '<div><h3>Accounts</h3>' + accts.map((ac, i) =>
+        '<div class="aeth-tx"><span class="sw" style="display:inline-block;width:9px;height:9px;border-radius:3px;background:' + aethColor(ac.owner, i) + '"></span>' +
+        esc(ac.owner) + ' <span class="k">' + esc(ac.kind) + '</span><span class="amt">' + fmt(ac.balance, 0) + '</span></div>'
+      ).join("") + '</div>' +
+      '<div><h3>Recent ledger</h3>' + (ledger || '<div class="empty">No transactions yet.</div>') + '</div>' +
+    '</div>';
 }
 
 function renderTraining(t) {
@@ -767,6 +837,8 @@ const CMD_HELP = [
   "train — Lumi & Aether study the next trading lesson",
   "aura add <kind> <name> <personality> — profile a client/brand/user/investor",
   "aura list / aura brief <id> — see auras and their personalization briefs",
+  "aether — token supply, treasury & balances",
+  "aether send <from> <to> <amount> — transfer AETHER credits",
 ];
 
 async function api(method, path, body) {
@@ -860,6 +932,19 @@ async function execCommand(text) {
       return r.complete && r.topic === "review"
         ? "curriculum complete — Aether is reviewing"
         : 'studied "' + r.topic + '" (' + r.lessonsStudied + "/" + r.curriculumTotal + ") — " + r.note;
+    }
+    case "aether": {
+      const sub = (parts[1] || "").toLowerCase();
+      if (sub === "send") {
+        const [from, to, amt] = [parts[2], parts[3], Number(parts[4])];
+        if (!from || !to || !amt) throw new Error("usage: aether send <from> <to> <amount>");
+        const r = await api("POST", "/aether/transfer", { from: from, to: to, amount: amt });
+        return "sent " + fmt(r.amount, 0) + " AETHER " + from + " → " + to;
+      }
+      const a = await api("GET", "/aether");
+      return a.symbol + " on " + a.chain + ": " + fmt(a.circulating, 0) + " circulating / " + fmt(a.totalSupply, 0) +
+        " supply · " + (a.reconciled ? "reconciled" : "DRIFT") + "\\n" +
+        a.accounts.map(ac => "  " + ac.owner + ": " + fmt(ac.balance, 0)).join("\\n");
     }
     case "": return null;
     default: throw new Error('unknown signal "' + cmd + '" — type help');

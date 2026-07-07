@@ -9,6 +9,7 @@ import { auditInvest, recordAudit } from "./integrity";
 import { runSweep } from "./guardian";
 import { research, scoutMarket } from "./knowledge";
 import { runStudy } from "./training";
+import { reward } from "./token";
 
 export type SkillName = "insight" | "vigilance" | "engineering" | "empathy";
 
@@ -152,11 +153,13 @@ export async function checkQuests(db: D1Database): Promise<{ title: string; skil
 				.bind(quest.id)
 				.run();
 			await awardXp(db, quest.skill, quest.xp_reward, `Quest "${quest.title}"`);
+			// Completed work also earns Aether credits from the treasury.
+			await reward(db, "lumi", quest.xp_reward, `Quest "${quest.title}"`);
 			await db
 				.prepare("INSERT INTO reports (author, kind, title, body, data, realm) VALUES ('lumi', 'quest', ?, ?, ?, 'tech')")
 				.bind(
 					`Quest complete: ${quest.title}`,
-					`Lumi earned ${quest.xp_reward} ${quest.skill} XP.`,
+					`Lumi earned ${quest.xp_reward} ${quest.skill} XP and ${quest.xp_reward} AETHER.`,
 					JSON.stringify({ questId: quest.id, skill: quest.skill, xp: quest.xp_reward }),
 				)
 				.run();

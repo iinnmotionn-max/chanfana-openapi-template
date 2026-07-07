@@ -5,6 +5,7 @@
 
 import { auditInvest, IntegrityCheck } from "./integrity";
 import { getRisk } from "./risk";
+import { auditSupply } from "./token";
 
 export interface SweepResult {
 	ok: boolean;
@@ -28,6 +29,8 @@ export const EXPECTED_TABLES = [
 	"knowledge",
 	"auras",
 	"risk_config",
+	"aether_accounts",
+	"aether_ledger",
 ] as const;
 
 const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.]+/;
@@ -144,6 +147,9 @@ export async function runSweep(db: D1Database): Promise<SweepResult> {
 				? "within halt grace but " + risk.breaches.join("; ")
 				: "drawdown " + (risk.drawdown * 100).toFixed(1) + "%, " + risk.openPositions + " open positions — within limits",
 	});
+
+	// Aether token supply: every balance is backed and total supply is fixed.
+	checks.push(await auditSupply(db));
 
 	const result: SweepResult = { ok: checks.every((c) => c.status !== "fail"), checks };
 	await recordSweep(db, result);

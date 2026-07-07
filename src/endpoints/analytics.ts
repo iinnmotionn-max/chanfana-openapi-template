@@ -8,6 +8,7 @@ import { realmsOverview, wellnessStats } from "./realms";
 import { perfSummary, selfAssess } from "../engine/lumi";
 import { getRisk } from "../engine/risk";
 import { curriculumStatus } from "../engine/training";
+import { tokenOverview } from "../engine/token";
 
 const MAX_CURVE_POINTS = 150;
 
@@ -26,7 +27,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 	public async handle(c: AppContext) {
 		const db = c.env.DB;
 
-		const [agents, bots, closedTrades, openTrades, reports, goals, market, strategies, realms, checks, wellness, lumi, quests, perf, risk, markets, training] = await Promise.all([
+		const [agents, bots, closedTrades, openTrades, reports, goals, market, strategies, realms, checks, wellness, lumi, quests, perf, risk, markets, training, aether] = await Promise.all([
 			db.prepare("SELECT id, name, role, dna, status FROM agents ORDER BY id").all(),
 			db
 				.prepare(
@@ -68,6 +69,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 			getRisk(db),
 			db.prepare("SELECT symbol, tick, price, feed FROM market_state ORDER BY symbol").all(),
 			curriculumStatus(db),
+			tokenOverview(db),
 		]);
 
 		const botRows = bots.results.map(decorateBot);
@@ -116,6 +118,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				risk,
 				markets: markets.results,
 				training,
+				aether,
 			},
 		};
 	}

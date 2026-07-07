@@ -19,6 +19,14 @@ import { KnowledgeList, LumiCurriculum, LumiPulse, LumiResearch, LumiScout, Lumi
 import { AuraBrief, AuraCreate, AuraList } from "./endpoints/auras";
 import { RiskConfig, RiskHalt, RiskResume, RiskStatusEndpoint } from "./endpoints/risk";
 import { MarketFeed, MarketList } from "./endpoints/market";
+import {
+	AetherAudit,
+	AetherLedger,
+	AetherOverview,
+	AetherReward,
+	AetherSpend,
+	AetherTransfer,
+} from "./endpoints/aether";
 import { dashHtml } from "./dash";
 
 // Start a Hono app
@@ -126,6 +134,14 @@ openapi.patch("/risk/config", RiskConfig);
 // Market feed — switch a symbol between the sim tape and the live feed
 openapi.get("/market", MarketList);
 openapi.post("/market/feed", MarketFeed);
+
+// Aether token — the AI-credit ledger (Sui-style tokenomics)
+openapi.get("/aether", AetherOverview);
+openapi.get("/aether/ledger", AetherLedger);
+openapi.post("/aether/transfer", AetherTransfer);
+openapi.post("/aether/reward", AetherReward);
+openapi.post("/aether/spend", AetherSpend);
+openapi.post("/aether/audit", AetherAudit);
 
 // Analytics (feeds the cockpit)
 openapi.get("/analytics/overview", AnalyticsOverview);
