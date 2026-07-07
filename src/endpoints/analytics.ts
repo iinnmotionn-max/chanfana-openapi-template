@@ -4,6 +4,7 @@ import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
 import { decorateBot } from "./bots";
+import { realmsOverview, wellnessStats } from "./realms";
 
 const MAX_CURVE_POINTS = 150;
 
@@ -22,7 +23,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 	public async handle(c: AppContext) {
 		const db = c.env.DB;
 
-		const [agents, bots, closedTrades, openTrades, reports, goals, market, strategies] = await Promise.all([
+		const [agents, bots, closedTrades, openTrades, reports, goals, market, strategies, realms, checks, wellness] = await Promise.all([
 			db.prepare("SELECT id, name, role, dna, status FROM agents ORDER BY id").all(),
 			db
 				.prepare(
@@ -55,6 +56,9 @@ export class AnalyticsOverview extends OpenAPIRoute {
 					 GROUP BY s.id ORDER BY s.status = 'active' DESC, totalPnl DESC`,
 				)
 				.all(),
+			realmsOverview(db),
+			db.prepare("SELECT * FROM checks ORDER BY id DESC LIMIT 10").all(),
+			wellnessStats(db),
 		]);
 
 		const botRows = bots.results.map(decorateBot);
@@ -94,6 +98,9 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				equityCurve: [{ tick: 0, equity: startingEquity }, ...equityCurve],
 				reports: reports.results.map((r) => ({ ...r, data: JSON.parse(String(r.data)) })),
 				goals: goals.results,
+				realms,
+				checks: checks.results,
+				wellness,
 			},
 		};
 	}

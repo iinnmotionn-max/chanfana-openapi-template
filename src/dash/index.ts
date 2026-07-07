@@ -1,6 +1,7 @@
-// Lumi — the colony's front-end intellect. A self-contained creator dashboard:
+// Lumi — the creator's multi-realm intellect. A self-contained Creator Cockpit:
 // no CDNs, no build step. Reads /analytics/overview, renders inline SVG charts,
-// and gives the creator direct controls over the engine.
+// and gives the creator direct controls over four realms:
+// Invest (paper-trading colony), Guardian (protection), Tech (diagnostics), Wellness (check-ins).
 // Palette: validated dark-surface steps (see docs/BLUEPRINT.md build rules).
 
 export const dashHtml = `<!doctype html>
@@ -8,7 +9,7 @@ export const dashHtml = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lumi — Colony Dashboard</title>
+<title>Lumi — Creator Cockpit</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><circle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%233987e5%22/></svg>">
 <style>
   :root {
@@ -35,7 +36,7 @@ export const dashHtml = `<!doctype html>
   header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
   header h1 { font-size: 20px; font-weight: 650; letter-spacing: 0.2px; }
   header .sub { color: var(--muted); font-size: 13px; }
-  .controls { margin-left: auto; display: flex; gap: 8px; }
+  .controls { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
   button {
     background: var(--surface); color: var(--ink); border: 1px solid var(--border);
     border-radius: 8px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer;
@@ -49,6 +50,16 @@ export const dashHtml = `<!doctype html>
   }
   .agent .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
   .agent b { color: var(--ink); font-weight: 600; text-transform: capitalize; }
+  .realms { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  @media (max-width: 1000px) { .realms { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .realms { grid-template-columns: 1fr; } }
+  .realm { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+  .realm .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .realm .name { font-weight: 600; font-size: 13px; }
+  .realm .mission { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .realm .meta { font-size: 11px; color: var(--ink-2); margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .realm .meta .mutedtxt { color: var(--muted); }
+  .section-h { font-size: 12px; font-weight: 600; letter-spacing: 1px; color: var(--muted); margin: 4px 0 10px; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
   .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
   .tile .label { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
@@ -57,7 +68,8 @@ export const dashHtml = `<!doctype html>
   .up { color: var(--good); } .down { color: var(--critical); }
   .grid2 { display: grid; grid-template-columns: 3fr 2fr; gap: 10px; margin-bottom: 16px; }
   .grid2b { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-  @media (max-width: 860px) { .grid2, .grid2b { grid-template-columns: 1fr; } }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  @media (max-width: 860px) { .grid2, .grid2b, .grid3 { grid-template-columns: 1fr; } }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; overflow: hidden; }
   .card h2 { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 10px; letter-spacing: 0.3px; }
   .chart-wrap { position: relative; }
@@ -75,6 +87,9 @@ export const dashHtml = `<!doctype html>
   .pill { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
   .pill.active { color: var(--good); border-color: var(--good); }
   .pill.retired, .pill.paused { color: var(--muted); }
+  .pill.nominal, .pill.pass { color: var(--good); border-color: var(--good); }
+  .pill.watch, .pill.warn { color: var(--warning); border-color: var(--warning); }
+  .pill.alert, .pill.fail { color: var(--critical); border-color: var(--critical); }
   .feed { display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; }
   .report { border-left: 2px solid var(--series-1); padding-left: 10px; }
   .report.learning { border-left-color: var(--series-2); }
@@ -82,12 +97,43 @@ export const dashHtml = `<!doctype html>
   .report .who { font-size: 11px; color: var(--muted); text-transform: capitalize; }
   .report .title { font-size: 13px; font-weight: 600; }
   .report .body { font-size: 12px; color: var(--ink-2); }
+  .checks { display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; }
+  .check { padding: 7px 0; border-bottom: 1px solid var(--grid); }
+  .check:last-child { border-bottom: none; }
+  .check .row { display: flex; align-items: baseline; gap: 8px; font-size: 13px; flex-wrap: wrap; }
+  .check .row b { font-weight: 600; }
+  .check .crealm { font-size: 11px; color: var(--muted); text-transform: capitalize; }
+  .check .ctime { font-size: 11px; color: var(--muted); margin-left: auto; }
+  .check .cdetail { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .kv { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--grid); }
+  .kv:last-child { border-bottom: none; }
+  .kv .k { color: var(--muted); }
+  .kv .v { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .wl-last { font-size: 13px; }
+  .wl-last b { font-weight: 600; }
+  .wl-note-txt { font-size: 12px; color: var(--ink-2); }
+  .wl-when, .wl-count { font-size: 12px; color: var(--muted); }
+  .wl-avg { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+  .wl-form { margin-top: 12px; border-top: 1px solid var(--grid); padding-top: 10px; }
+  .wl-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .wl-label { font-size: 12px; color: var(--muted); width: 46px; }
+  .seg { display: flex; gap: 6px; }
+  .seg button { padding: 5px 0; width: 34px; text-align: center; }
+  .seg button.sel { border-color: var(--series-1); color: var(--ink); }
+  .wl-form input {
+    background: var(--page); color: var(--ink); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px; width: 100%; margin-top: 10px;
+  }
+  .wl-form input::placeholder { color: var(--muted); }
+  #btn-checkin { margin-top: 10px; }
   .goal { margin-bottom: 12px; }
   .goal .row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
   .goal .detail { font-size: 12px; color: var(--muted); }
   .bar-track { height: 5px; background: var(--grid); border-radius: 4px; margin-top: 5px; }
   .bar-fill { height: 100%; background: var(--series-1); border-radius: 4px; transition: width 0.6s; }
   .goal.done .bar-fill { background: var(--good); }
+  .goal-realm { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin: 12px 0 8px; }
+  .goal-realm:first-child { margin-top: 0; }
   .empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
   footer { color: var(--muted); font-size: 12px; text-align: center; padding: 12px 0 4px; }
   svg text { font: 11px system-ui, sans-serif; fill: var(--muted); }
@@ -95,16 +141,21 @@ export const dashHtml = `<!doctype html>
 </head>
 <body>
 <header>
-  <h1>Lumi · Colony Dashboard</h1>
+  <h1>Lumi · Creator Cockpit</h1>
   <span class="sub" id="status">connecting to Reg…</span>
   <div class="controls">
     <button id="btn-seed">Seed colony</button>
-    <button id="btn-run">Run cycle</button>
+    <button id="btn-run">Run + learn</button>
     <button id="btn-learn">Learn</button>
+    <button id="btn-audit">Audit ledger</button>
+    <button id="btn-sweep">Protection sweep</button>
   </div>
 </header>
 
 <div class="agents" id="agents"></div>
+<div class="realms" id="realms"></div>
+
+<div class="section-h">INVEST REALM</div>
 <div class="tiles" id="tiles"></div>
 
 <div class="grid2">
@@ -133,7 +184,7 @@ export const dashHtml = `<!doctype html>
     </table></div>
   </div>
   <div class="card">
-    <h2>OBSERVER &amp; REPORTER — live feed</h2>
+    <h2>OBSERVER &amp; REPORTER — live feed, all realms</h2>
     <div class="feed" id="feed"></div>
   </div>
 </div>
@@ -147,12 +198,34 @@ export const dashHtml = `<!doctype html>
     </table></div>
   </div>
   <div class="card">
-    <h2>GOALS — the colony's roadmap</h2>
+    <h2>GOALS — the roadmap, across realms</h2>
     <div id="goals"></div>
   </div>
 </div>
 
-<footer>Lumi (front-end intellect) · Reg (engine) · Databank (memory) — paper trading, every trade recorded, every lesson kept.</footer>
+<div class="section-h">GUARDIAN · TECH · WELLNESS</div>
+<div class="grid3">
+  <div class="card">
+    <h2>GUARDIAN — protection checks</h2>
+    <div class="checks" id="checks"></div>
+  </div>
+  <div class="card">
+    <h2>TECH — diagnostics</h2>
+    <div id="tech"></div>
+  </div>
+  <div class="card">
+    <h2>WELLNESS — creator check-ins</h2>
+    <div id="wellness-info"></div>
+    <div class="wl-form">
+      <div class="wl-row"><span class="wl-label">Mood</span><div class="seg" id="mood-seg"></div></div>
+      <div class="wl-row"><span class="wl-label">Energy</span><div class="seg" id="energy-seg"></div></div>
+      <input id="wl-note" type="text" maxlength="500" placeholder="Note (optional)">
+      <button id="btn-checkin">Check in</button>
+    </div>
+  </div>
+</div>
+
+<footer>Lumi (front-end intellect) · Reg (engine) · Databank (memory) — four realms: Invest · Guardian · Tech · Wellness. Paper trading only, every trade recorded, every lesson kept.</footer>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -164,39 +237,65 @@ async function load() {
   try {
     const res = await fetch("/analytics/overview");
     const { result } = await res.json();
-    render(result);
-    $("status").textContent = "live · tick " + result.colony.tick + " · updated " + new Date().toLocaleTimeString();
+    render(result || {});
+    const tick = result && result.colony ? result.colony.tick : "—";
+    $("status").textContent = "live · tick " + tick + " · updated " + new Date().toLocaleTimeString();
   } catch (e) {
     $("status").textContent = "Reg unreachable — retrying…";
   }
 }
 
 function render(d) {
-  renderAgents(d.agents);
-  renderTiles(d.colony);
-  renderEquity(d.equityCurve);
-  renderWinRates(d.strategies.filter(s => s.status === "active"));
-  renderBots(d.bots);
-  renderFeed(d.reports);
-  renderStrategies(d.strategies);
-  renderGoals(d.goals);
+  renderAgents(d.agents || []);
+  renderRealms(d.realms || []);
+  renderTiles(d.colony || {});
+  renderEquity(d.equityCurve || []);
+  renderWinRates((d.strategies || []).filter(s => s.status === "active"));
+  renderBots(d.bots || []);
+  renderFeed(d.reports || []);
+  renderStrategies(d.strategies || []);
+  renderGoals(d.goals || []);
+  renderChecks(d.checks || []);
+  renderTech(d);
+  renderWellness(d.wellness || {});
 }
 
 function renderAgents(agents) {
   $("agents").innerHTML = agents.map(a =>
-    '<span class="agent"><span class="dot"></span><b>' + a.name + '</b> ' + a.role + '</span>'
+    '<span class="agent"><span class="dot"></span><b>' + esc(a.name) + '</b> ' + esc(a.role) + '</span>'
   ).join("");
 }
 
+function renderRealms(realms) {
+  const el = $("realms");
+  if (!realms.length) { el.innerHTML = ""; el.style.display = "none"; return; }
+  el.style.display = "";
+  el.innerHTML = realms.map(r => {
+    const lc = r.latestCheck;
+    const goals = Number(r.openGoals) || 0;
+    return '<div class="realm">' +
+      '<div class="top"><span class="name">' + esc(r.title || r.key) + '</span>' +
+      '<span class="pill ' + esc(r.status || "") + '">' + esc(r.status || "unknown") + '</span></div>' +
+      '<div class="mission" title="' + esc(r.mission) + '">' + esc(r.mission) + '</div>' +
+      '<div class="meta">' +
+      (lc
+        ? '<span>' + esc(lc.name) + '</span><span class="pill ' + esc(lc.status || "") + '">' + esc(lc.status || "?") + '</span>'
+        : '<span class="mutedtxt">no checks yet</span>') +
+      '<span>' + goals + ' open goal' + (goals === 1 ? "" : "s") + '</span>' +
+      '</div></div>';
+  }).join("");
+}
+
 function renderTiles(c) {
-  const pnlCls = c.pnl >= 0 ? "up" : "down";
-  const pnlSign = c.pnl >= 0 ? "▲ +" : "▼ ";
+  const pnl = Number(c.pnl) || 0;
+  const pnlCls = pnl >= 0 ? "up" : "down";
+  const pnlSign = pnl >= 0 ? "▲ +" : "▼ ";
   $("tiles").innerHTML =
-    tile("Colony equity", "$" + fmt(c.equity), '<span class="' + pnlCls + '">' + pnlSign + fmt(c.pnl) + "</span>") +
-    tile("Win rate", pct(c.winRate), c.closedTrades + " closed trades") +
-    tile("Open positions", c.openTrades, "across all bots") +
-    tile("Market tick", c.tick.toLocaleString(), "simulated tape") +
-    tile("Starting capital", "$" + fmt(c.startingEquity, 0), "paper only");
+    tile("Colony equity", "$" + fmt(c.equity || 0), '<span class="' + pnlCls + '">' + pnlSign + fmt(pnl) + "</span>") +
+    tile("Win rate", pct(c.winRate || 0), (c.closedTrades || 0) + " closed trades") +
+    tile("Open positions", c.openTrades || 0, "across all bots") +
+    tile("Market tick", (c.tick || 0).toLocaleString(), "simulated tape") +
+    tile("Starting capital", "$" + fmt(c.startingEquity || 0, 0), "paper only");
 }
 function tile(label, value, delta) {
   return '<div class="tile"><div class="label">' + label + '</div><div class="value">' + value + '</div><div class="delta">' + (delta || "") + "</div></div>";
@@ -306,19 +405,89 @@ function renderFeed(reports) {
   const feed = $("feed");
   if (!reports.length) { feed.innerHTML = '<div class="empty">No reports yet — the Reporter files one after every cycle.</div>'; return; }
   feed.innerHTML = reports.map(r =>
-    '<div class="report ' + esc(r.kind) + '"><div class="who">' + esc(r.author) + " · " + esc(r.kind) + " · " + esc(r.created_at) + '</div>' +
+    '<div class="report ' + esc(r.kind) + '"><div class="who">' + esc(r.author) + " · " +
+    (r.realm ? esc(r.realm) + " · " : "") + esc(r.kind) + " · " + esc(r.created_at) + '</div>' +
     '<div class="title">' + esc(r.title) + '</div><div class="body">' + esc(r.body) + "</div></div>"
   ).join("");
 }
 
 function renderGoals(goals) {
-  $("goals").innerHTML = goals.map(g =>
-    '<div class="goal ' + esc(g.status) + '"><div class="row"><span>' + esc(g.title) +
-    '</span><span class="pill ' + (g.status === "done" ? "active" : "") + '">' + esc(g.status).replace("_", " ") + "</span></div>" +
-    '<div class="detail">' + esc(g.detail) + '</div>' +
-    '<div class="bar-track"><div class="bar-fill" style="width:' + Math.round(g.progress * 100) + '%"></div></div></div>'
+  const el = $("goals");
+  if (!goals.length) { el.innerHTML = '<div class="empty">No goals yet.</div>'; return; }
+  const order = ["invest", "guardian", "tech", "wellness"];
+  const groups = {};
+  goals.forEach(g => {
+    const r = g.realm || "invest";
+    (groups[r] = groups[r] || []).push(g);
+  });
+  const keys = order.filter(k => groups[k]).concat(Object.keys(groups).filter(k => order.indexOf(k) === -1));
+  el.innerHTML = keys.map(k =>
+    '<div class="goal-realm">' + esc(k) + '</div>' +
+    groups[k].map(g =>
+      '<div class="goal ' + esc(g.status) + '"><div class="row"><span>' + esc(g.title) +
+      '</span><span class="pill ' + (g.status === "done" ? "active" : "") + '">' + esc(g.status).replace("_", " ") + "</span></div>" +
+      '<div class="detail">' + esc(g.detail) + '</div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + Math.round((Number(g.progress) || 0) * 100) + '%"></div></div></div>'
+    ).join("")
   ).join("");
 }
+
+function renderChecks(checks) {
+  const el = $("checks");
+  if (!checks.length) { el.innerHTML = '<div class="empty">No checks yet — run a protection sweep.</div>'; return; }
+  el.innerHTML = checks.map(c =>
+    '<div class="check"><div class="row"><span class="pill ' + esc(c.status || "") + '">' + esc(c.status || "?") + '</span>' +
+    '<b>' + esc(c.name) + '</b><span class="crealm">' + esc(c.realm) + '</span>' +
+    '<span class="ctime">' + esc(c.created_at) + '</span></div>' +
+    (c.detail ? '<div class="cdetail">' + esc(c.detail) + '</div>' : '') +
+    '</div>'
+  ).join("");
+}
+
+function renderTech(d) {
+  const c = d.colony || {};
+  const bots = d.bots || [], strategies = d.strategies || [], reports = d.reports || [];
+  const rows = [
+    ["Market tick", (c.tick || 0).toLocaleString()],
+    ["Closed trades", String(c.closedTrades || 0)],
+    ["Open positions", String(c.openTrades || 0)],
+    ["Bots active", bots.filter(b => b.status === "active").length + " / " + bots.length],
+    ["Strategies active", strategies.filter(s => s.status === "active").length + " / " + strategies.length],
+    ["Reports", reports.length + " recent"],
+  ];
+  $("tech").innerHTML = rows.map(r =>
+    '<div class="kv"><span class="k">' + r[0] + '</span><span class="v">' + esc(r[1]) + '</span></div>'
+  ).join("");
+}
+
+function renderWellness(w) {
+  const el = $("wellness-info");
+  let out = "";
+  if (w.last) {
+    out += '<div class="wl-last"><b>Last check-in:</b> mood ' + (Number(w.last.mood) || 0) + '/5 · energy ' + (Number(w.last.energy) || 0) + '/5</div>';
+    if (w.last.note) out += '<div class="wl-note-txt">' + esc(w.last.note) + '</div>';
+    out += '<div class="wl-when">' + esc(w.last.created_at) + '</div>';
+  } else {
+    out += '<div class="empty">No check-ins yet — how are you doing?</div>';
+  }
+  if (w.avg7) out += '<div class="wl-avg">7-day avg: mood ' + fmt(w.avg7.mood, 1) + ' · energy ' + fmt(w.avg7.energy, 1) + '</div>';
+  const count = Number(w.count) || 0;
+  if (count) out += '<div class="wl-count">' + count + ' check-in' + (count === 1 ? "" : "s") + ' total</div>';
+  el.innerHTML = out;
+}
+
+let moodSel = 3, energySel = 3;
+function buildSeg(id, get, set) {
+  const el = $(id);
+  el.innerHTML = [1, 2, 3, 4, 5].map(n =>
+    '<button type="button" data-n="' + n + '"' + (n === get() ? ' class="sel"' : '') + '>' + n + '</button>'
+  ).join("");
+  el.querySelectorAll("button").forEach(b => {
+    b.onclick = () => { set(Number(b.dataset.n)); buildSeg(id, get, set); };
+  });
+}
+buildSeg("mood-seg", () => moodSel, n => { moodSel = n; });
+buildSeg("energy-seg", () => energySel, n => { energySel = n; });
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
@@ -332,8 +501,15 @@ async function act(btn, path, body) {
   } finally { btn.disabled = false; }
 }
 $("btn-seed").onclick = (e) => act(e.target, "/colony/seed");
-$("btn-run").onclick = (e) => act(e.target, "/engine/run", { ticks: 200 });
+$("btn-run").onclick = (e) => act(e.target, "/engine/run", { ticks: 200, learn: true });
 $("btn-learn").onclick = (e) => act(e.target, "/engine/learn");
+$("btn-audit").onclick = (e) => act(e.target, "/realms/invest/audit");
+$("btn-sweep").onclick = (e) => act(e.target, "/realms/guardian/sweep");
+$("btn-checkin").onclick = async (e) => {
+  const note = $("wl-note").value;
+  await act(e.target, "/realms/wellness/checkin", { mood: moodSel, energy: energySel, note: note });
+  $("wl-note").value = "";
+};
 
 load();
 setInterval(load, 5000);

@@ -7,6 +7,14 @@ import { EngineLearn, EngineRun } from "./endpoints/engine";
 import { ReportsList, StrategiesList, TradesList } from "./endpoints/records";
 import { GoalCreate, GoalsList, GoalUpdate } from "./endpoints/goals";
 import { AnalyticsOverview } from "./endpoints/analytics";
+import {
+	GuardianSweep,
+	InvestAudit,
+	RealmsList,
+	TechStatus,
+	WellnessCheckin,
+	WellnessSummary,
+} from "./endpoints/realms";
 import { dashHtml } from "./dash";
 
 // Start a Hono app
@@ -72,7 +80,15 @@ openapi.get("/goals", GoalsList);
 openapi.post("/goals", GoalCreate);
 openapi.patch("/goals/:id", GoalUpdate);
 
-// Analytics (feeds the dashboard)
+// Realms — Lumi's four domains
+openapi.get("/realms", RealmsList);
+openapi.post("/realms/invest/audit", InvestAudit);
+openapi.post("/realms/guardian/sweep", GuardianSweep);
+openapi.get("/realms/tech/status", TechStatus);
+openapi.get("/realms/wellness", WellnessSummary);
+openapi.post("/realms/wellness/checkin", WellnessCheckin);
+
+// Analytics (feeds the cockpit)
 openapi.get("/analytics/overview", AnalyticsOverview);
 
 // Export the Hono app

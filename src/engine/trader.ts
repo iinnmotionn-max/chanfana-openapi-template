@@ -11,6 +11,7 @@ interface BotRow {
 	strategy_id: number;
 	symbol: string;
 	balance: number;
+	starting_balance: number;
 	status: string;
 	kind: string;
 	params: string;
@@ -34,9 +35,13 @@ export interface CycleResult {
 	losses: number;
 	totalPnl: number;
 	colonyEquity: number;
+	paused: number;
 }
 
 const MAX_TICKS_PER_CYCLE = 2000;
+// Drawdown kill-switch: an active bot that falls below this fraction of its
+// starting balance is paused before it can bleed further.
+const CAPITAL_FLOOR = 0.4;
 
 export async function runCycle(db: D1Database, ticks: number): Promise<CycleResult> {
 	const steps = Math.min(Math.max(1, Math.floor(ticks)), MAX_TICKS_PER_CYCLE);
@@ -44,7 +49,7 @@ export async function runCycle(db: D1Database, ticks: number): Promise<CycleResu
 	const bots = (
 		await db
 			.prepare(
-				`SELECT b.id, b.name, b.soul, b.strategy_id, b.symbol, b.balance, b.status, s.kind, s.params
+				`SELECT b.id, b.name, b.soul, b.strategy_id, b.symbol, b.balance, b.starting_balance, b.status, s.kind, s.params
 				 FROM bots b JOIN strategies s ON s.id = b.strategy_id
 				 WHERE b.status = 'active' AND s.status = 'active'`,
 			)
@@ -62,6 +67,7 @@ export async function runCycle(db: D1Database, ticks: number): Promise<CycleResu
 		losses: 0,
 		totalPnl: 0,
 		colonyEquity: 0,
+		paused: 0,
 	};
 
 	// One shared market per symbol; all bots on a symbol see the same tape.
@@ -132,7 +138,27 @@ export async function runCycle(db: D1Database, ticks: number): Promise<CycleResu
 				}
 			}
 
-			statements.push(db.prepare("UPDATE bots SET balance = ? WHERE id = ?").bind(balance, bot.id));
+			// Drawdown kill-switch: pause the bot and file an alert if it drew
+			// down below the capital floor this cycle.
+			if (balance < CAPITAL_FLOOR * bot.starting_balance) {
+				statements.push(
+					db.prepare("UPDATE bots SET balance = ?, status = 'paused' WHERE id = ?").bind(balance, bot.id),
+				);
+				statements.push(
+					db
+						.prepare(
+							"INSERT INTO reports (author, kind, title, body, data, realm) VALUES ('reg', 'alert', ?, ?, ?, 'invest')",
+						)
+						.bind(
+							`Kill-switch: ${bot.name} paused`,
+							`Bot "${bot.name}" drew down to ${balance.toFixed(2)} — below ${(CAPITAL_FLOOR * 100).toFixed(0)}% of its starting balance ${bot.starting_balance.toFixed(2)}. Trading paused.`,
+							JSON.stringify({ botId: bot.id, balance, startingBalance: bot.starting_balance }),
+						),
+				);
+				result.paused++;
+			} else {
+				statements.push(db.prepare("UPDATE bots SET balance = ? WHERE id = ?").bind(balance, bot.id));
+			}
 			result.colonyEquity += balance;
 		}
 
@@ -143,7 +169,7 @@ export async function runCycle(db: D1Database, ticks: number): Promise<CycleResu
 
 	// The Reporter files the cycle into the Databank.
 	await db
-		.prepare("INSERT INTO reports (author, kind, title, body, data) VALUES ('reporter', 'cycle', ?, ?, ?)")
+		.prepare("INSERT INTO reports (author, kind, title, body, data, realm) VALUES ('reporter', 'cycle', ?, ?, ?, 'invest')")
 		.bind(
 			`Cycle ${result.fromTick} → ${result.toTick}`,
 			`${result.botsTraded} bots traded ${result.ticks} ticks: ${result.closed} closed (${result.wins}W/${result.losses}L), net ${result.totalPnl.toFixed(2)}. Colony equity ${result.colonyEquity.toFixed(2)}.`,

@@ -160,7 +160,7 @@ export async function runLearning(db: D1Database): Promise<LearnResult> {
 		.run();
 
 	await db
-		.prepare("INSERT INTO reports (author, kind, title, body, data) VALUES ('observer', 'learning', ?, ?, ?)")
+		.prepare("INSERT INTO reports (author, kind, title, body, data, realm) VALUES ('observer', 'learning', ?, ?, ?, 'invest')")
 		.bind(
 			`Learning pass: ${judged.length} strategies judged`,
 			`Colony win rate ${(result.overallWinRate * 100).toFixed(1)}%. Retired ${result.retired.length} strategies, reassigned ${result.reassignedBots} bots` +

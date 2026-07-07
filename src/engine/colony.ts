@@ -34,7 +34,7 @@ export async function seedColony(db: D1Database): Promise<SeedResult> {
 	}
 
 	await db
-		.prepare("INSERT INTO reports (author, kind, title, body, data) VALUES ('reg', 'milestone', ?, ?, ?)")
+		.prepare("INSERT INTO reports (author, kind, title, body, data, realm) VALUES ('reg', 'milestone', ?, ?, ?, 'invest')")
 		.bind(
 			"Colony born",
 			`Seeded ${strategies} generation-1 strategies with ${bots} bots carrying merged colony DNA.`,

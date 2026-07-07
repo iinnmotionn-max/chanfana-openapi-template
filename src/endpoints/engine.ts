@@ -7,11 +7,12 @@ import { runLearning } from "../engine/learning";
 export class EngineRun extends OpenAPIRoute {
 	public schema = {
 		tags: ["Engine"],
-		summary: "Run a trading cycle: advance the market, every active bot trades",
+		summary: "Run a trading cycle: advance the market, every active bot trades. Set learn=true to run a learning pass in the same call (active advancement learning).",
 		request: {
 			body: contentJson(
 				z.object({
 					ticks: z.number().int().min(1).max(2000).default(200),
+					learn: z.boolean().default(false),
 				}),
 			),
 		},
@@ -26,7 +27,9 @@ export class EngineRun extends OpenAPIRoute {
 	public async handle(c: AppContext) {
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const result = await runCycle(c.env.DB, body.ticks);
-		return { success: true, result };
+		// Active advancement learning: trade and learn in one call.
+		const learned = body.learn ? await runLearning(c.env.DB) : null;
+		return { success: true, result: { ...result, learned } };
 	}
 }
 
