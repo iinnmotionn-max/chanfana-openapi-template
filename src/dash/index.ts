@@ -10,7 +10,7 @@ export const dashHtml = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lumi — Creator Cockpit</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><circle cx=%228%22 cy=%228%22 r=%227%22 fill=%22%233987e5%22/></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><ellipse cx=%228%22 cy=%228%22 rx=%227%22 ry=%223%22 fill=%22none%22 stroke=%22%239085e9%22 stroke-width=%221.2%22/><circle cx=%228%22 cy=%228%22 r=%223%22 fill=%22%233987e5%22/></svg>">
 <style>
   :root {
     --page: #0d0d0d;
@@ -66,6 +66,23 @@ export const dashHtml = `<!doctype html>
   }
   header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
   header h1 { font-size: 20px; font-weight: 650; letter-spacing: 0.2px; }
+  /* Brand lockup — animated vector mark (4K-crisp) + wordmark */
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo-mark { flex: none; overflow: visible; filter: drop-shadow(0 0 10px rgba(57,135,229,0.45)); }
+  .logo-mark .lm-o1, .logo-mark .lm-o2, .logo-mark .lm-core { transform-box: fill-box; transform-origin: center; }
+  .logo-mark .lm-o1 { animation: lm-spin 16s linear infinite; }
+  .logo-mark .lm-o2 { animation: lm-spin 24s linear infinite reverse; }
+  .logo-mark .lm-core { animation: lm-breathe 3.4s ease-in-out infinite; }
+  @keyframes lm-spin { to { transform: rotate(360deg); } }
+  @keyframes lm-breathe { 0%,100% { opacity: 0.9; } 50% { opacity: 1; transform: scale(1.08); } }
+  .brand-txt { display: flex; flex-direction: column; line-height: 1.05; }
+  .brand-name {
+    font-size: 26px; font-weight: 800; letter-spacing: 1.5px;
+    background: linear-gradient(92deg, #bfe4ff 0%, #3987e5 42%, #9085e9 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+  }
+  .brand-tag { font-size: 9.5px; letter-spacing: 2.4px; color: var(--muted); font-weight: 600; }
+  @media (prefers-reduced-motion: reduce) { .logo-mark * { animation: none !important; } }
   header .sub { color: var(--muted); font-size: 13px; }
   .controls { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
   button {
@@ -367,7 +384,30 @@ export const dashHtml = `<!doctype html>
 </head>
 <body>
 <header>
-  <h1>Lumi · Creator Cockpit</h1>
+  <div class="brand">
+    <svg class="logo-mark" viewBox="0 0 48 48" width="42" height="42" aria-label="Lumi logo">
+      <defs>
+        <radialGradient id="lm-core" cx="42%" cy="38%" r="65%">
+          <stop offset="0%" stop-color="#bfe4ff"/>
+          <stop offset="42%" stop-color="#3987e5"/>
+          <stop offset="100%" stop-color="#1c4f95"/>
+        </radialGradient>
+        <linearGradient id="lm-ring" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#3987e5"/>
+          <stop offset="50%" stop-color="#9085e9"/>
+          <stop offset="100%" stop-color="#199e70"/>
+        </linearGradient>
+      </defs>
+      <g class="lm-o1"><ellipse cx="24" cy="24" rx="22" ry="9" fill="none" stroke="url(#lm-ring)" stroke-width="1.5" opacity="0.85"/></g>
+      <g class="lm-o2"><ellipse cx="24" cy="24" rx="22" ry="9" fill="none" stroke="url(#lm-ring)" stroke-width="1.5" opacity="0.5" transform="rotate(62 24 24)"/></g>
+      <circle class="lm-core" cx="24" cy="24" r="8.5" fill="url(#lm-core)"/>
+      <circle cx="24" cy="24" r="8.5" fill="none" stroke="#cfebff" stroke-width="0.6" opacity="0.7"/>
+    </svg>
+    <div class="brand-txt">
+      <span class="brand-name">LUMI</span>
+      <span class="brand-tag">CREATOR&nbsp;COCKPIT · ÆTHER</span>
+    </div>
+  </div>
   <span class="sub" id="status">connecting to Reg…</span>
   <div class="controls">
     <button id="btn-seed">Seed colony</button>
