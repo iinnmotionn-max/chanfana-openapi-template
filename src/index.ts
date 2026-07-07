@@ -22,6 +22,14 @@ import { dashHtml } from "./dash";
 // Start a Hono app
 const app = new Hono<{ Bindings: Env }>();
 
+// Runs for every route. Setting the header AFTER `await next()` guarantees it
+// lands on the final response, so live API + dashboard are never served stale.
+app.use("*", async (c, next) => {
+	await next();
+	// Live data + dashboard must never be served stale from a cache.
+	c.header("Cache-Control", "no-store, must-revalidate");
+});
+
 app.onError((err, c) => {
 	if (err instanceof ApiException) {
 		// If it's a Chanfana ApiException, let Chanfana handle the response

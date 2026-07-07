@@ -336,16 +336,24 @@ let equityPoints = [];
 let firstPaint = true;      // entrance animations play once, not on every refresh
 let lastCurveLen = -1;      // redraw the line animation only when the tape grows
 let lastReportId = -1;      // slide-in the feed only when something new arrived
+let loadSeq = 0;            // monotonic guard: only the newest load may render
+let loading = false;        // in-flight guard: the 5s timer never stacks requests
 
 async function load() {
+  if (loading) return;
+  const seq = ++loadSeq;
+  loading = true;
   try {
-    const res = await fetch("/analytics/overview");
+    const res = await fetch("/analytics/overview?_=" + Date.now(), { cache: "no-store" });
     const { result } = await res.json();
+    if (seq !== loadSeq) return;   // a newer load already won — drop this stale response
     render(result || {});
     const tick = result && result.colony ? result.colony.tick : "—";
     $("status").textContent = "live · tick " + tick + " · updated " + new Date().toLocaleTimeString();
   } catch (e) {
-    $("status").textContent = "Reg unreachable — retrying…";
+    if (seq === loadSeq) $("status").textContent = "Reg unreachable — retrying…";
+  } finally {
+    loading = false;
   }
 }
 
@@ -651,7 +659,7 @@ function esc(s) {
 async function act(btn, path, body) {
   btn.disabled = true;
   try {
-    await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : "{}" });
+    await fetch(path, { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : "{}" });
     await load();
   } finally { btn.disabled = false; }
 }
@@ -687,8 +695,12 @@ const CMD_HELP = [
 ];
 
 async function api(method, path, body) {
-  const res = await fetch(path, {
+  const url = method === "GET"
+    ? path + (path.includes("?") ? "&" : "?") + "_=" + Date.now()
+    : path;
+  const res = await fetch(url, {
     method: method,
+    cache: "no-store",
     headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -811,7 +823,7 @@ let autopilot = false, pulsing = false;
 async function autoPulse() {
   if (!autopilot || pulsing) return;
   pulsing = true;
-  try { await fetch("/lumi/pulse", { method: "POST" }); await load(); }
+  try { await fetch("/lumi/pulse", { method: "POST", cache: "no-store" }); await load(); }
   catch (e) {} finally { pulsing = false; }
 }
 $("btn-autopilot").onclick = (e) => {
