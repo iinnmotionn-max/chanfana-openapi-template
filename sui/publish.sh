@@ -18,9 +18,12 @@
 set -euo pipefail
 
 # Normalize the network name (accept TESTNET/Devnet/etc.) and validate it.
+# BUILD_ENV picks the framework the compiler resolves against — the newer Sui
+# CLI requires it and only accepts 'testnet' or 'mainnet' (devnet uses testnet).
 NETWORK="$(printf '%s' "${1:-testnet}" | tr '[:upper:]' '[:lower:]')"
 case "$NETWORK" in
-  testnet|devnet|mainnet) : ;;
+  testnet|devnet) BUILD_ENV=testnet ;;
+  mainnet) BUILD_ENV=mainnet ;;
   *) echo "!! Unknown network '$NETWORK'. Use: testnet (recommended), devnet, or mainnet."; exit 1 ;;
 esac
 GAS_BUDGET="${GAS_BUDGET:-200000000}"
@@ -55,10 +58,10 @@ if [ "$NETWORK" != "mainnet" ]; then
 fi
 
 echo "==> Building the Move package…"
-( cd "$PKG" && sui move build )
+( cd "$PKG" && sui move build --build-env "$BUILD_ENV" )
 
 echo "==> Publishing (this signs a real transaction and spends gas)…"
-OUT="$(cd "$PKG" && sui client publish --gas-budget "$GAS_BUDGET" --json)"
+OUT="$(cd "$PKG" && sui client publish --gas-budget "$GAS_BUDGET" --build-env "$BUILD_ENV" --json)"
 
 # Parse with Node (always present via npm) so jq isn't required on Windows.
 PARSED="$(printf '%s' "$OUT" | node -e '
