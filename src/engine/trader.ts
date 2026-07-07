@@ -1,7 +1,9 @@
 // Reg's trading cycle: advance the market, let every active bot signal and
 // trade, compound balances, and have the Reporter file a cycle report.
 
-import { getCursor, priceSeries, saveCursor } from "./market";
+import { getCursor, saveCursor } from "./market";
+import { buildSlice } from "./feed";
+import { evaluateRisk, isHalted } from "./risk";
 import { signalFor, Signal, StrategyParams } from "./strategies";
 
 interface BotRow {
@@ -36,6 +38,8 @@ export interface CycleResult {
 	totalPnl: number;
 	colonyEquity: number;
 	paused: number;
+	halted: boolean;
+	live: boolean;
 }
 
 const MAX_TICKS_PER_CYCLE = 2000;
@@ -68,7 +72,14 @@ export async function runCycle(db: D1Database, ticks: number): Promise<CycleResu
 		totalPnl: 0,
 		colonyEquity: 0,
 		paused: 0,
+		halted: false,
+		live: false,
 	};
+
+	// Risk gate: when the colony is halted, bots still MANAGE (close) open
+	// positions but open no new ones — capital stops going out.
+	const halted = await isHalted(db);
+	result.halted = halted;
 
 	// One shared market per symbol; all bots on a symbol see the same tape.
 	const symbols = [...new Set(bots.map((b) => b.symbol))];
@@ -76,8 +87,12 @@ export async function runCycle(db: D1Database, ticks: number): Promise<CycleResu
 
 	for (const symbol of symbols) {
 		const cursor = await getCursor(db, symbol);
-		const toTick = cursor.tick + steps;
-		const prices = priceSeries(cursor.seed, toTick);
+		// The feed adapter decides the tape: deterministic sim, or a replay of
+		// real observations banked from a live source (same interface).
+		const slice = await buildSlice(db, cursor, steps);
+		const toTick = slice.toTick;
+		const prices = slice.prices;
+		if (slice.live) result.live = true;
 		result.fromTick = cursor.tick;
 		result.toTick = toTick;
 
@@ -123,7 +138,7 @@ export async function runCycle(db: D1Database, ticks: number): Promise<CycleResu
 					position = 0;
 				}
 
-				if (signal !== 0 && balance > 0) {
+				if (signal !== 0 && balance > 0 && !halted) {
 					// Compounding: size scales with current balance, shaped by DNA.
 					const qty = (balance * riskFraction) / price;
 					const insert = await db
@@ -166,6 +181,10 @@ export async function runCycle(db: D1Database, ticks: number): Promise<CycleResu
 	}
 
 	if (statements.length > 0) await db.batch(statements);
+
+	// Risk gate: after balances settle, trip the halt if this cycle pushed the
+	// colony past its drawdown or exposure limits.
+	await evaluateRisk(db);
 
 	// The Reporter files the cycle into the Databank.
 	await db

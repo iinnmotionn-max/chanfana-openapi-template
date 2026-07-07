@@ -104,6 +104,13 @@ export async function scoutMarket(db: D1Database): Promise<ScoutResult> {
 		for (const [coin, v] of Object.entries(data)) {
 			prices[coin] = v.usd;
 			await recordMetric(db, `live_${coin}_usd`, v.usd, { source: "coingecko" });
+			const liveSymbol = coin === "bitcoin" ? "LIVE-BTC" : coin === "ethereum" ? "LIVE-ETH" : null;
+			if (liveSymbol) {
+				await db
+					.prepare("INSERT INTO live_ticks (symbol, price, source) VALUES (?, ?, 'coingecko')")
+					.bind(liveSymbol, v.usd)
+					.run();
+			}
 		}
 		await db
 			.prepare("INSERT INTO knowledge (source, kind, title, url, detail, data) VALUES ('coingecko', 'market-snapshot', ?, 'https://www.coingecko.com', ?, ?)")

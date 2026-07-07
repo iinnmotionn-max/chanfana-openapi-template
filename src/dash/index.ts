@@ -184,6 +184,15 @@ export const dashHtml = `<!doctype html>
   .quest .detail { font-size: 12px; color: var(--muted); }
   .quest.done .row .xp { color: var(--good); }
   .quest.done .bar-fill { background: var(--good); }
+  #risk-card { margin-bottom: 16px; }
+  .risk-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .risk-stat { font-size: 13px; color: var(--ink-2); }
+  .risk-stat b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .risk-reason { font-size: 12px; color: var(--critical); margin-top: 8px; }
+  .risk-actions { margin-top: 12px; }
+  .markets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .mkt { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .mkt b { color: var(--ink); }
   .cmd-card { margin-bottom: 16px; }
   .cmd-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
   .cmd-chips button { padding: 4px 10px; font-size: 12px; border-radius: 999px; }
@@ -258,6 +267,11 @@ export const dashHtml = `<!doctype html>
 
 <div class="section-h">INVEST REALM</div>
 <div class="tiles" id="tiles"></div>
+
+<div class="card" id="risk-card">
+  <h2>RISK GATES — capital protection &amp; live feed</h2>
+  <div id="risk-panel"></div>
+</div>
 
 <div class="grid2">
   <div class="card">
@@ -372,7 +386,34 @@ function render(d) {
   renderWellness(d.wellness || {});
   renderLumi(d.lumi || null);
   renderQuests(d.quests || []);
+  renderRisk(d.risk || null, d.markets || []);
   firstPaint = false;
+}
+
+function renderRisk(r, markets) {
+  const el = $("risk-panel");
+  if (!r) { el.innerHTML = '<div class="empty">Risk status loading…</div>'; return; }
+  const halted = !!r.halted;
+  const ddPct = ((Number(r.drawdown) || 0) * 100).toFixed(1);
+  const ddCap = ((Number(r.maxDrawdown) || 0) * 100).toFixed(0);
+  let out = '<div class="risk-row">' +
+    '<span class="pill ' + (halted ? "alert" : (r.breaches && r.breaches.length ? "watch" : "nominal")) + '">' +
+    (halted ? "HALTED" : "TRADING") + '</span>' +
+    '<span class="risk-stat">drawdown <b>' + ddPct + '%</b> / ' + ddCap + '% cap</span>' +
+    '<span class="risk-stat">exposure <b>' + (Number(r.openPositions) || 0) + '</b> / ' + (Number(r.maxOpenPositions) || 0) + ' open</span>' +
+    '</div>';
+  if (halted && r.reason) out += '<div class="risk-reason">' + esc(r.reason) + '</div>';
+  out += '<div class="risk-actions">' +
+    '<button id="btn-risk-toggle">' + (halted ? "Resume trading" : "Halt trading") + '</button></div>';
+  if (markets && markets.length) {
+    out += '<div class="markets">' + markets.map(m =>
+      '<span class="mkt"><b>' + esc(m.symbol) + '</b> · tick ' + (Number(m.tick) || 0).toLocaleString() +
+      ' · <span class="pill ' + (m.feed === "live" ? "nominal" : "") + '">' + esc(m.feed || "sim") + '</span></span>'
+    ).join("") + '</div>';
+  }
+  el.innerHTML = out;
+  const btn = $("btn-risk-toggle");
+  if (btn) btn.onclick = (e) => act(e.target, halted ? "/risk/resume" : "/risk/halt", { reason: halted ? "resumed from cockpit" : "halted from cockpit" });
 }
 
 function renderAgents(agents) {

@@ -17,6 +17,8 @@ import {
 } from "./endpoints/realms";
 import { KnowledgeList, LumiPulse, LumiResearch, LumiScout, LumiStatus } from "./endpoints/lumi";
 import { AuraBrief, AuraCreate, AuraList } from "./endpoints/auras";
+import { RiskConfig, RiskHalt, RiskResume, RiskStatusEndpoint } from "./endpoints/risk";
+import { MarketFeed, MarketList } from "./endpoints/market";
 import { dashHtml } from "./dash";
 
 // Start a Hono app
@@ -110,6 +112,16 @@ openapi.post("/realms/guardian/sweep", GuardianSweep);
 openapi.get("/realms/tech/status", TechStatus);
 openapi.get("/realms/wellness", WellnessSummary);
 openapi.post("/realms/wellness/checkin", WellnessCheckin);
+
+// Risk gates for capital — drawdown/exposure limits + global halt
+openapi.get("/risk", RiskStatusEndpoint);
+openapi.post("/risk/halt", RiskHalt);
+openapi.post("/risk/resume", RiskResume);
+openapi.patch("/risk/config", RiskConfig);
+
+// Market feed — switch a symbol between the sim tape and the live feed
+openapi.get("/market", MarketList);
+openapi.post("/market/feed", MarketFeed);
 
 // Analytics (feeds the cockpit)
 openapi.get("/analytics/overview", AnalyticsOverview);

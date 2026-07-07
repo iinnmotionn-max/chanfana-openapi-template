@@ -4,6 +4,7 @@
 // recorded — checks rows, a report, the realm status light, and the goal.
 
 import { auditInvest, IntegrityCheck } from "./integrity";
+import { getRisk } from "./risk";
 
 export interface SweepResult {
 	ok: boolean;
@@ -26,6 +27,7 @@ export const EXPECTED_TABLES = [
 	"quests",
 	"knowledge",
 	"auras",
+	"risk_config",
 ] as const;
 
 const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.]+/;
@@ -130,6 +132,18 @@ export async function runSweep(db: D1Database): Promise<SweepResult> {
 				: { name: "market-continuity", status: "pass", detail: `${market.length} market(s) continuous: tick >= 0 and price > 0` },
 		);
 	}
+
+	// Risk gates: the colony-level drawdown / exposure limits and global halt.
+	const risk = await getRisk(db);
+	checks.push({
+		name: "risk-gates",
+		status: risk.halted ? "warn" : risk.breaches.length > 0 ? "warn" : "pass",
+		detail: risk.halted
+			? "trading halted: " + risk.reason
+			: risk.breaches.length > 0
+				? "within halt grace but " + risk.breaches.join("; ")
+				: "drawdown " + (risk.drawdown * 100).toFixed(1) + "%, " + risk.openPositions + " open positions — within limits",
+	});
 
 	const result: SweepResult = { ok: checks.every((c) => c.status !== "fail"), checks };
 	await recordSweep(db, result);
