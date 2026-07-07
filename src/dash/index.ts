@@ -304,6 +304,77 @@ export const dashHtml = `<!doctype html>
   .chain-link { font-size: 12px; margin-bottom: 12px; }
   .chain-link.on { color: var(--good); }
   .chain-link.off { color: var(--muted); }
+  /* AETH — DESIGN PREVIEW (not launched: no contract, no wallet, no money movement) */
+  #aethp-card { position: relative; overflow: hidden; margin-bottom: 16px; }
+  #aethp-card::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(560px 220px at 82% -30%, rgba(144,133,233,0.13), transparent 70%),
+                radial-gradient(520px 200px at 8% -20%, rgba(57,135,229,0.10), transparent 70%); }
+  .aethp-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  .aethp-title { font-size: 15px; font-weight: 700; letter-spacing: 0.3px; }
+  .aethp-title .aeth-glyph { font-weight: 800;
+    background: linear-gradient(92deg, #bfe4ff, #9085e9); -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent; }
+  .aethp-badge { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 999px; color: var(--warning); border: 1px solid var(--warning);
+    background: rgba(250,178,25,0.08); }
+  .aethp-badge .bdot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--warning);
+    margin-right: 6px; vertical-align: middle; animation: breathe 2.4s ease-in-out infinite; }
+  .aethp-lede { color: var(--ink-2); font-size: 12.5px; max-width: 760px; margin-bottom: 16px; }
+  .aethp-lede b { color: var(--ink); }
+  .aethp-grid { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: center; margin-bottom: 18px; }
+  @media (max-width: 820px) { .aethp-grid { grid-template-columns: 1fr; justify-items: center; } }
+  .aethp-donut-wrap { position: relative; width: 200px; height: 200px; margin: 0 auto; }
+  .aethp-ring { transform-origin: center;
+    animation: aethp-draw 1.1s cubic-bezier(0.22,1,0.36,1) var(--d, 0s) both; }
+  @keyframes aethp-draw { from { stroke-dashoffset: var(--seg); } to { stroke-dashoffset: 0; } }
+  .aethp-donut-core { position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; pointer-events: none; }
+  .aethp-donut-core .big { font-size: 27px; font-weight: 750; letter-spacing: -0.5px; }
+  .aethp-donut-core .sub { font-size: 10px; color: var(--muted); letter-spacing: 0.4px; margin-top: 2px; }
+  .aethp-supply h3, .aethp-block h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--muted); margin-bottom: 10px; font-weight: 600; }
+  .aethp-legend { display: flex; flex-direction: column; gap: 10px; }
+  .aethp-leg { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .aethp-leg .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .aethp-leg .nm { color: var(--ink-2); font-weight: 600; }
+  .aethp-leg .dsc { color: var(--muted); font-size: 11px; }
+  .aethp-leg .pc { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .aethp-block { margin-bottom: 18px; }
+  .aethp-chains { display: flex; gap: 10px; flex-wrap: wrap; }
+  .aethp-chip { flex: 1; min-width: 150px; background: var(--page); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; cursor: pointer; transition: border-color .2s, transform .15s, box-shadow .3s; }
+  .aethp-chip:hover { transform: translateY(-2px); }
+  .aethp-chip.sel { border-color: var(--series-4); box-shadow: 0 0 0 1px var(--series-4) inset, 0 8px 22px rgba(0,0,0,0.3); }
+  .aethp-chip .cn { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+  .aethp-chip .cn .st { margin-left: auto; font-size: 9px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; }
+  .aethp-chip.sel .cn .st { color: var(--series-2); border-color: var(--series-2); }
+  .aethp-chip .ct { font-size: 11px; color: var(--muted); margin-top: 5px; }
+  .aethp-gate { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+  .aethp-gate b { color: var(--ink-2); }
+  .aethp-pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  @media (max-width: 820px) { .aethp-pillars { grid-template-columns: 1fr; } }
+  .aethp-pillar { background: var(--page); border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px;
+    transition: border-color .25s, transform .2s; }
+  .aethp-pillar:hover { transform: translateY(-2px); border-color: var(--series-4); }
+  .aethp-pillar .pi { font-size: 20px; }
+  .aethp-pillar .pt { font-weight: 700; font-size: 13.5px; margin: 6px 0 4px; }
+  .aethp-pillar .pd { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+  .aethp-swap { background: var(--page); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .aethp-swap-h { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .aethp-swap-h .t { font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 600; }
+  .aethp-swap-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+  .aethp-leg2 { flex: 1; min-width: 150px; }
+  .aethp-leg2 label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 5px; }
+  .aethp-leg2 input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--ink); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 9px 12px; }
+  .aethp-leg2 input:focus { outline: none; border-color: var(--series-4); }
+  .aethp-leg2 .u { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .aethp-swap-eq { font-size: 22px; color: var(--series-4); flex: none; padding: 0 2px 8px; }
+  .aethp-rate { font-size: 11.5px; color: var(--muted); margin-top: 12px; }
+  .aethp-rate b { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .aethp-foot { font-size: 11px; color: var(--muted); margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .aethp-foot .warn { color: var(--warning); font-weight: 600; }
   /* SHIELD — the showpiece */
   #shield-card { margin-bottom: 16px; position: relative; overflow: hidden; }
   .shield-card::before { content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -458,6 +529,65 @@ export const dashHtml = `<!doctype html>
 <div class="card" id="aether-card">
   <h2>AETHER TOKEN — the colony's AI-credit currency</h2>
   <div id="aether-panel"></div>
+</div>
+
+<div class="card" id="aethp-card">
+  <div class="aethp-h">
+    <div class="aethp-title"><span class="aeth-glyph">Æther · AETH</span> — Aether realm native token</div>
+    <span class="aethp-badge"><span class="bdot"></span>Design preview — not launched</span>
+  </div>
+  <div class="aethp-lede">The token of the Aether finance realm — a utility credit for the InMotion ecosystem. <b>Not a security.</b> No yield, no price promises — value is what it unlocks. No contract, no wallet, no money movement here.</div>
+
+  <div class="aethp-grid">
+    <div class="aethp-donut-wrap">
+      <svg width="200" height="200" viewBox="0 0 140 140" role="img" aria-label="AETH supply model: 60% mining emission, 30% utility swap, 10% ecosystem reserve">
+        <circle cx="70" cy="70" r="54" fill="none" stroke="var(--grid)" stroke-width="20" opacity="0.25"/>
+        <circle class="aethp-ring" cx="70" cy="70" r="54" fill="none" stroke="var(--series-4)" stroke-width="20" stroke-dasharray="201.58 137.71" transform="rotate(-90 70 70)" style="--seg:201.58;--d:0s"/>
+        <circle class="aethp-ring" cx="70" cy="70" r="54" fill="none" stroke="var(--series-1)" stroke-width="20" stroke-dasharray="99.79 239.50" transform="rotate(126 70 70)" style="--seg:99.79;--d:.35s"/>
+        <circle class="aethp-ring" cx="70" cy="70" r="54" fill="none" stroke="var(--series-2)" stroke-width="20" stroke-dasharray="31.93 307.36" transform="rotate(234 70 70)" style="--seg:31.93;--d:.7s"/>
+      </svg>
+      <div class="aethp-donut-core"><span class="big">100M</span><span class="sub">18 decimals · fixed cap</span></div>
+    </div>
+    <div class="aethp-supply">
+      <h3>Supply model (design) · max 100,000,000</h3>
+      <div class="aethp-legend">
+        <div class="aethp-leg"><span class="sw" style="background:var(--series-4)"></span><span class="nm">Mining emission</span><span class="dsc">disclosed compute → credits</span><span class="pc">60%</span></div>
+        <div class="aethp-leg"><span class="sw" style="background:var(--series-1)"></span><span class="nm">Utility swap</span><span class="dsc">credits ⇄ AETH pool</span><span class="pc">30%</span></div>
+        <div class="aethp-leg"><span class="sw" style="background:var(--series-2)"></span><span class="nm">Ecosystem reserve</span><span class="dsc">grants · integrations</span><span class="pc">10%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="aethp-block">
+    <h3>Candidate chains — switch anytime pre-launch</h3>
+    <div class="aethp-chains" id="aethp-chains">
+      <div class="aethp-chip sel" data-chain="Sui"><div class="cn">Sui<span class="st">active</span></div><div class="ct">SuiCoin&lt;T&gt; · testnet-ready</div></div>
+      <div class="aethp-chip" data-chain="Solana"><div class="cn">Solana<span class="st">candidate</span></div><div class="ct">SPL Token · devnet-ready</div></div>
+      <div class="aethp-chip" data-chain="EVM"><div class="cn">EVM<span class="st">reference</span></div><div class="ct">ERC-20 · reference impl</div></div>
+    </div>
+    <div class="aethp-gate">Build + test on each (testnet/devnet), then the chain is chosen at launch with counsel — <b>Gate 1</b>. Switching is one config value; nothing here is live. Active candidate: <b id="aethp-active">Sui</b>.</div>
+  </div>
+
+  <div class="aethp-block">
+    <h3>What AETH does</h3>
+    <div class="aethp-pillars">
+      <div class="aethp-pillar"><div class="pi">⛏</div><div class="pt">Earn</div><div class="pd">Contribute disclosed compute → app credits. Transparent, consented, one-click off.</div></div>
+      <div class="aethp-pillar"><div class="pi">✦</div><div class="pt">Spend</div><div class="pd">Use it as utility: Studio runs, Aether education, realm access. Value = what it unlocks.</div></div>
+      <div class="aethp-pillar"><div class="pi">⇄</div><div class="pt">Swap</div><div class="pd">Convert credits ⇄ AETH. Self-custody only — InMotion never holds your funds.</div></div>
+    </div>
+  </div>
+
+  <div class="aethp-swap">
+    <div class="aethp-swap-h"><span style="font-size:16px">⇄</span><span class="t">Swap credits → AETH · design preview</span></div>
+    <div class="aethp-swap-row">
+      <div class="aethp-leg2"><label>Credits</label><input id="aethp-credits" type="number" min="0" step="100" value="1500" inputmode="numeric"><div class="u">app credits</div></div>
+      <div class="aethp-swap-eq">⇄</div>
+      <div class="aethp-leg2"><label>AETH</label><input id="aethp-aeth" type="number" min="0" step="1" value="15" inputmode="decimal"><div class="u">AETH (preview)</div></div>
+    </div>
+    <div class="aethp-rate">Rate: <b>100 credits ≈ 1 AETH</b> · <b>1 AETH ≈ 100 credits</b>. Preview math only — editable, no money moves.</div>
+  </div>
+
+  <div class="aethp-foot"><span class="warn">Design only.</span> Æther (AETH) is not launched. No live swap, no wallet, no money movement — this panel is a design preview of the intended token.</div>
 </div>
 
 <div class="card" id="defi-card">
@@ -1488,6 +1618,27 @@ $("btn-autopilot").onclick = (e) => {
   if (autopilot) autoPulse();
 };
 setInterval(autoPulse, 15000);
+
+// ---- AETH design preview: swap-preview math + candidate-chain selection ----
+// Pure UI. No money moves — this only mirrors the intended 100:1 credits⇄AETH rate.
+(function aethPreview() {
+  const RATE = 100; // credits per AETH — design rate only
+  const c = $("aethp-credits"), a = $("aethp-aeth");
+  if (c && a) {
+    const round = (n) => Math.round(n * 1000) / 1000;
+    c.addEventListener("input", () => { a.value = round(Math.max(0, Number(c.value) || 0) / RATE); });
+    a.addEventListener("input", () => { c.value = Math.round(Math.max(0, Number(a.value) || 0) * RATE); });
+  }
+  const chains = document.querySelectorAll("#aethp-chains .aethp-chip");
+  const active = $("aethp-active");
+  chains.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      chains.forEach((x) => x.classList.remove("sel"));
+      chip.classList.add("sel");
+      if (active) active.textContent = chip.dataset.chain;
+    });
+  });
+})();
 
 load();
 setInterval(load, 5000);
