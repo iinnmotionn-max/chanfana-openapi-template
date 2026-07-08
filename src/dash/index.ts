@@ -1,7 +1,8 @@
 // Lumi — the creator's multi-realm intellect. A self-contained Creator Cockpit:
 // no CDNs, no build step. Reads /analytics/overview, renders inline SVG charts,
-// and gives the creator direct controls over four realms:
-// Invest (paper-trading colony), Guardian (protection), Tech (diagnostics), Wellness (check-ins).
+// and gives the creator direct controls over six realms: Invest/Aether
+// (trading + AI-credit economy), Guardian (protection), Tech (diagnostics),
+// Wellness (check-ins), Shield (web3 security), Growth (PR/leads).
 // Palette: validated dark-surface steps (see docs/BLUEPRINT.md build rules).
 
 export const dashHtml = `<!doctype html>
@@ -702,7 +703,7 @@ export const dashHtml = `<!doctype html>
   </div>
 </div>
 
-<footer>Lumi (front-end intellect) · Reg (engine) · Databank (memory) — four realms: Invest · Guardian · Tech · Wellness. Paper trading only, every trade recorded, every lesson kept.</footer>
+<footer>Lumi (front-end intellect) · Reg (engine) · Databank (memory) — six realms: Invest/Aether · Guardian · Tech · Wellness · Shield · Growth. Paper trading only, every trade recorded, every lesson kept.</footer>
 
 <script>
 const $ = (id) => document.getElementById(id);

@@ -149,7 +149,7 @@ openapi.get("/auras", AuraList);
 openapi.post("/auras", AuraCreate);
 openapi.get("/auras/:id/brief", AuraBrief);
 
-// Realms — Lumi's four domains
+// Realms — Lumi's domains (Invest/Aether · Guardian · Tech · Wellness · Shield · Growth)
 openapi.get("/realms", RealmsList);
 openapi.post("/realms/invest/audit", InvestAudit);
 openapi.post("/realms/guardian/sweep", GuardianSweep);

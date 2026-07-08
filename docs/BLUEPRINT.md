@@ -1,8 +1,10 @@
 # LUMI COLONY — System Blueprint
 
 Lumi is a multi-realm creator AI built on Cloudflare Workers + D1. She watches
-over four realms from one **Creator Cockpit** (`GET /dash`); the original
-self-improving paper-trading colony lives on as the **Invest** realm.
+over **six realms** from one **Creator Cockpit** (`GET /dash`); the original
+self-improving paper-trading colony lives on as the **Invest** realm — now
+merged with **Aether** (it handles money and settles in AETHER, so trading,
+token, wallet and DeFi are one realm; internal key stays `invest`).
 The core intelligences working as one unit:
 
 | Agent        | Role                                                                          | Where it lives                     |
@@ -21,10 +23,12 @@ the cockpit and `GET /realms`.
 
 | Realm        | Mission                                                                                   | Status is driven by            |
 | ------------ | ------------------------------------------------------------------------------------------ | ------------------------------ |
-| **Invest**   | Grow paper capital with flawless ledger integrity + active learning — it handles money.    | `POST /realms/invest/audit`    |
+| **Invest / Aether** | Grow paper capital with flawless ledger integrity + active learning, and run the AI-credit economy: AETHER token ledger, in-app web3 wallet, DeFi (AMM pool / vaults / lending). It handles money. | `POST /realms/invest/audit` |
 | **Guardian** | Protection, security, and privacy — "the man around the house". Sweeps the whole system.   | `POST /realms/guardian/sweep`  |
 | **Tech**     | Dev/tech support diagnostics: table counts, ticks, active bots, every realm's health.      | `GET /realms/tech/status`      |
 | **Wellness** | Creator check-ins: mood, energy, streaks. The colony works for a human.                    | `POST /realms/wellness/checkin` |
+| **Shield**   | Web3 security — red-team scans, contract posture, decentralization scoring, privacy-first KYC (a hash, never an identity). | `POST /shield/scan` |
+| **Growth**   | PR, content drafting, campaigns, lead-gen; connectors for real publishing + a deals pipeline. | `GET /growth`, `POST /growth/scout` |
 
 - **Invest audit** runs five checks — `ledger-reconciliation` (every bot's
   starting balance + closed-trade PnL must equal its balance to the cent),
@@ -131,23 +135,43 @@ the last line of defence.
 ## Architecture (vital core → outward)
 
 ```
-migrations/            Databank schema (agents, strategies, bots, trades,
-                       reports, goals, market_state, realms, checks,
-                       wellness_checkins) + seed colony DNA + realm missions
-src/engine/market.ts   Deterministic seeded price series (reproducible ticks)
-src/engine/strategies.ts  SMA-cross, momentum, mean-reversion (parameterized)
-src/engine/trader.ts   Runs a cycle: signals → executes → records trades,
-                       take-profit/stop-loss manages each position every tick,
-                       compounds balances, kill-switch pauses drained bots,
-                       Reporter writes cycle report
-src/engine/learning.ts Observer metrics + retire/evolve/reassign + report
-src/endpoints/         Reg's API: colony, bots, strategies, trades, reports,
-                       goals, engine (run/learn), realms (audit, sweep,
-                       status, wellness), analytics
-src/dash/              Lumi: the self-contained Creator Cockpit (realms,
-                       charts, feed, goals) — auto-refreshing visuals
-tests/integration/     Full-loop + realm tests: seed → trade → learn →
-                       evolve; audit → sweep → check-in
+migrations/            Databank schema, one numbered file per feature (0001→0016):
+                       colony (agents/strategies/bots/trades/reports/goals/
+                       market_state) → realms/checks/wellness → lumi evolution
+                       (skills/quests/metrics) → knowledge → auras → live feed →
+                       risk gates → aether token+ledger → shield → defi →
+                       wallet → growth → growthx → invest∪aether merge
+src/engine/            The colony's brains:
+  market.ts            Deterministic seeded price series (reproducible ticks)
+  feed.ts              PriceFeed adapter: sim tape OR replay of banked live ticks
+  strategies.ts        SMA-cross, momentum, mean-reversion + opt-in trend filter
+  trader.ts            Runs a cycle: signals → execute → record; take-profit /
+                       stop-loss manages each position every tick; compounds;
+                       kill-switch pauses drained bots
+  learning.ts          Observer metrics + retire/evolve/reassign + colony DNA
+  lumi.ts              Skills/XP, quests, awareness, initiative, and lumiPulse
+                       (the autonomous heartbeat: trade→learn→audit→sweep→quests)
+  integrity.ts         Invest audit checks (ledger reconciliation + 4 more)
+  guardian.ts          System sweep: databank/ledger/privacy/heartbeat/continuity
+  risk.ts              Drawdown/exposure limits + global halt
+  knowledge.ts         Expeditions to public sources (HF Hub, CoinGecko)
+  training.ts          Trading curriculum Lumi & Aether study (Invest realm)
+  aura.ts              Consent-gated personality/design profiles + briefs
+  token.ts             AETHER: fixed-supply conserved credit ledger
+  wallet.ts            In-app web3 wallet over the ledger (0x addresses, Sui link)
+  defi.ts              AMM pool, yield vaults, collateralized lending
+  sui.ts               Sui chain-link status (reads *_PACKAGE_ID / *_CAP secrets)
+  shield.ts            Web3 security posture, red-team scan, privacy-first KYC
+  growth.ts / growthx.ts  Content/campaigns/leads; connectors + deals pipeline
+src/endpoints/         Reg's API — thin HTTP layer over the engine (see table)
+src/dash/index.ts      Lumi: the self-contained Creator Cockpit — one 1.6k-line
+                       HTML doc, inline SVG charts, /analytics/overview polling,
+                       calm-mode throttling. No CDN, no build step.
+sui/aether/            Move package for the on-chain AETHER coin (publish.sh)
+scripts/               dev.sh (local) + golive.sh (Cloudflare deploy)
+tests/integration/     11 suites, 83 tests: seed→trade→learn→evolve; audit→
+                       sweep→check-in; aether, wallet, defi, shield, growth(x),
+                       buildplan, freshness
 ```
 
 ## The flow (how the agents hand off to each other)
@@ -162,41 +186,44 @@ POST /engine/run       Reg advances the market N ticks; every active bot
 POST /engine/learn     Observer scores every strategy from trade history;
                        retires losers, evolves the champion, reassigns bots;
                        Reporter files a learning report
+POST /lumi/pulse       One autonomous heartbeat: trade → learn → audit →
+                       sweep → quests → awareness → initiative, all in one
+                       call. The Cron Trigger fires this hourly when deployed.
 POST /realms/invest/audit    Ledger + trade integrity checks; realm status set
 POST /realms/guardian/sweep  Security/privacy sweep across the whole system
 GET  /realms/tech/status     Diagnostics: table counts, tick, realm health
 POST /realms/wellness/checkin  Creator logs mood/energy; Lumi tracks trend
+POST /shield/scan      Red-team the posture; file findings + Shield status
+GET  /aether · /wallet · /defi   The AI-credit economy: token supply, wallet
+                       balances/sends, pool/vaults/lending — all conserved
+GET  /growth · POST /growth/scout   Draft content, hunt leads, move deals
 GET  /dash             Lumi reads the Databank through Reg's analytics and
-                       renders the Creator Cockpit
+                       renders the Creator Cockpit (calm-mode throttled)
 ```
 
-Run cycles and learning passes repeatedly (cron, CI, or by hand) and the
-colony trains itself on its own history — each generation built from the
-evidence of the last.
+Run cycles and learning passes repeatedly — by hand, by `POST /lumi/pulse`,
+or unattended on the Cron Trigger — and the colony trains itself on its own
+history, each generation built from the evidence of the last.
 
 ## API surface
 
-| Method | Path                       | Purpose                                          |
-| ------ | -------------------------- | ------------------------------------------------ |
-| POST   | `/colony/seed`             | Birth the starter colony (idempotent)            |
-| GET    | `/agents`                  | Agent registry + DNA + heartbeats                |
-| GET    | `/bots`                    | Bots with balance, strategy, live stats          |
-| POST   | `/bots`                    | Create a bot (inherits colony DNA)               |
-| GET    | `/strategies`              | Strategies with scores, generation, lineage      |
-| GET    | `/trades`                  | Trade history (filter by bot)                    |
-| POST   | `/engine/run`              | Run a trading cycle (`{ticks, learn?}`)          |
-| POST   | `/engine/learn`            | Run a learning/evolution cycle                   |
-| GET    | `/realms`                  | All four realms: mission, status, latest check   |
-| POST   | `/realms/invest/audit`     | Invest audit: ledger reconciliation + 4 more     |
-| POST   | `/realms/guardian/sweep`   | Guardian sweep: security, privacy, heartbeats    |
-| GET    | `/realms/tech/status`      | Tech diagnostics: table counts, tick, statuses   |
-| GET    | `/realms/wellness`         | Wellness summary: last, count, 7-day averages    |
-| POST   | `/realms/wellness/checkin` | Log a creator check-in (`{mood, energy, note?}`) |
-| GET    | `/reports`                 | Observer/Reporter feed (tagged by realm)         |
-| GET    | `/goals` `POST/PATCH`      | Colony goals & roadmap tracking (per realm)      |
-| GET    | `/analytics/overview`      | Everything the cockpit needs in one call         |
-| GET    | `/dash`                    | Lumi — the Creator Cockpit                       |
-| GET    | `/`                        | OpenAPI docs (auto-generated)                    |
+Full list is auto-documented at `GET /` (OpenAPI). Grouped by realm/subsystem:
+
+| Group | Endpoints | Purpose |
+| ----- | --------- | ------- |
+| **Colony** | `POST /colony/seed` · `GET /agents` · `GET /bots` `POST /bots` `PATCH /bots/:id` · `GET /strategies` · `GET /trades` | Seed the colony; agents/DNA; bots + control; strategies + lineage; trade history |
+| **Engine** | `POST /engine/run` (`{ticks, learn?}`) · `POST /engine/learn` | Run a trading cycle (TP/SL per tick); score/retire/evolve |
+| **Lumi** | `GET /lumi` · `POST /lumi/pulse` · `POST /lumi/research` · `POST /lumi/scout` · `GET /knowledge` · `POST /lumi/train` · `GET /lumi/curriculum` | Profile/skills; autonomous heartbeat; expeditions; curriculum |
+| **Realms** | `GET /realms` · `POST /realms/invest/audit` · `POST /realms/guardian/sweep` · `GET /realms/tech/status` · `GET /realms/wellness` `POST /realms/wellness/checkin` | Six realms: mission, status, checks, goals |
+| **Risk** | `GET /risk` · `POST /risk/halt` `POST /risk/resume` · `PATCH /risk/config` | Drawdown/exposure gates + global halt |
+| **Market** | `GET /market` · `POST /market/feed` | Switch a symbol between sim tape and live replay |
+| **Aether** | `GET /aether` `/aether/ledger` `/aether/chain` · `POST /aether/transfer` `/reward` `/spend` `/audit` | AETHER token ledger (conserved supply) |
+| **Wallet** | `GET /wallet` `/wallet/:ref` · `POST /wallet` `/wallet/send` `/wallet/link` `/wallet/aether` | In-app web3 wallet; Aether self-mints its own |
+| **DeFi** | `GET /defi` · `POST /defi/pool/{add,remove}` `/defi/swap` `/defi/vault/{deposit,withdraw}` `/defi/{borrow,repay}` | AMM pool, vaults, lending |
+| **Shield** | `GET /shield` · `POST /shield/scan` `/shield/kyc` | Security posture, red-team, privacy-first KYC |
+| **Growth** | `GET /growth` `/growth/posts` `/growth/leads` `/growth/deals` `/growth/connectors` `/growth/analytics` · `POST /growth/{post,campaign,lead,scout,connect,deal}` … | Content, campaigns, leads, connectors, deals |
+| **Aura** | `GET /auras` `/auras/:id/brief` · `POST /auras` | Consent-gated profiles + personalization briefs |
+| **Records / cockpit** | `GET /reports` · `GET /goals` `POST/PATCH` · `GET /analytics/overview` · `GET /dash` · `GET /` | Feed, goals, one-call cockpit payload, dashboard, OpenAPI |
 
 ## Roadmap (seeded as live goals in the Databank)
 
