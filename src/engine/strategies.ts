@@ -4,16 +4,6 @@
 
 export type Signal = -1 | 0 | 1;
 
-export interface StrategyRow {
-	id: number;
-	name: string;
-	kind: string;
-	params: string;
-	generation: number;
-	parent_id: number | null;
-	status: string;
-}
-
 export interface StrategyParams {
 	fast?: number;
 	slow?: number;

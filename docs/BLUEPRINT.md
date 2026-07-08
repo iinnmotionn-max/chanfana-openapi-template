@@ -234,17 +234,42 @@ Full list is auto-documented at `GET /` (OpenAPI). Grouped by realm/subsystem:
    trend filter work; tune score floor, mutation ranges, and the TP/SL bands
    from evidence. (Note: the current TP/SL profile trades a *lower* win rate for
    *higher* expectancy — retune the bands if a higher win % is the goal.)
-3. **Live data adapter** — swap the simulated feed for a real market data
-   source behind the same `PriceFeed` interface (still paper execution).
-4. **Scheduled autonomy** — Cloudflare Cron Trigger runs `engine/run` +
-   `engine/learn` on a schedule; the colony trains itself unattended.
-5. **Risk gates for real capital** — only after sustained, measured edge:
-   drawdown limits, kill-switches, then broker/exchange integration.
+4. **Live data adapter** — ✅ shipped: `src/engine/feed.ts` replays banked real
+   observations behind the same `PriceFeed` interface (still paper execution);
+   flip a symbol with `POST /market/feed`.
+5. **Scheduled autonomy** — ✅ shipped: the Cron Trigger fires `POST /lumi/pulse`
+   hourly so the colony trades/learns/audits/sweeps unattended.
+6. **Risk gates for real capital** — gates shipped (`src/engine/risk.ts`:
+   drawdown/exposure limits + global halt); broker/exchange integration stays
+   gated behind sustained, measured edge.
 
 ## Rules of the build
 
-- No dead code: template demo endpoints (tasks, dummy) removed, not orphaned.
+- **No dead code.** No orphaned endpoints, exports, types, files, or tables.
+  Sweep for stale code regularly — see below.
 - Every feature lands with an integration test in the same commit.
 - Schema changes only via migrations; the Databank is the single source of truth.
+  Remove stale schema forward-only (a `DROP ... IF EXISTS` migration), never by
+  editing or deleting an already-applied migration.
 - Determinism first: seeded market so every run is reproducible and debuggable.
 - Vital core outward: schema → engine → API → visuals, in that order, always shippable.
+
+### Stale-code sweep (how Lumi keeps herself clean)
+
+Run this periodically — after big features, before a release, or on request:
+
+1. **Drift** — `grep` for hard-coded counts/lists that fall out of date
+   (e.g. "four realms", route tables, the API surface here) and reconcile them
+   to the code. Docs are part of the build.
+2. **Dead exports/types** — for every `export`, check it's referenced outside
+   its own file (or at all). Unused `interface`/`type`/function → delete it.
+   (This is how `StrategyRow` and `HandleArgs` were removed.)
+3. **Orphan schema** — every table/column should have a reader and a writer in
+   `src/`. Orphans (like the template's `tasks` table) get a forward `DROP`.
+4. **Template scaffolding** — no leftover demo endpoints, `dummy`, hello-world,
+   or copy that describes a system we no longer are.
+5. **Honest seams stay.** A commented connector call guarded by a missing secret
+   (e.g. `growthx.ts`) is a deliberate seam, not dead code — leave it.
+
+Green bar is the gate: `npx tsc --noEmit` and `npm test` (83) must pass after
+any sweep.
