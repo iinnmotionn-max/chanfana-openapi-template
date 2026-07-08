@@ -57,6 +57,37 @@ number to prove it. No hype without evidence — the evidence is the hype.
 **AETHER** — the medium everything moves through; the colony's lifeblood and
 currency, live on Sui.
 
+## Visual mark
+
+The logo is an **atom / aura**: a glossy blue core (Lumi, the intelligence)
+ringed by three gradient orbits (blue → violet → green — the realms in motion)
+with three orbiting particles and a soft breathing halo. It's pure vector +
+CSS, so it stays crisp at any resolution (4K and beyond) and animates live in
+the cockpit header beside the gradient **LUMI** wordmark. Palette: blue
+`#3987e5`, violet `#9085e9`, aqua-green `#199e70`, on near-black `#0d0d0d`. The
+cockpit self-throttles its animation when the tab is backgrounded — polish that
+never costs the user's CPU.
+
+## AETH — the token (design preview)
+
+AETH is presented in the cockpit strictly as a **design preview — not
+launched**. The honest framing, repeated wherever it appears:
+
+- A **utility credit** for the InMotion ecosystem — **not a security**. No
+  yield, no price promises; value is only what it unlocks.
+- Design supply model: max **100,000,000 · 18 decimals**, split 60% mining
+  emission / 30% utility swap / 10% ecosystem reserve.
+- Candidate chains (switchable pre-launch, one config value): Sui (active,
+  `SuiCoin<T>`, testnet-ready), Solana (SPL, devnet-ready), EVM (ERC-20,
+  reference). The chain is chosen at launch with counsel — **Gate 1**.
+- Pillars: **Earn** (disclosed compute → credits), **Spend** (utility), **Swap**
+  (credits ⇄ AETH, self-custody only — InMotion never holds funds).
+- The in-cockpit swap is a **preview calculator** at 100 credits ≈ 1 AETH — no
+  contract, no wallet, no money movement.
+
+This is distinct from the live in-app **AETHER** ledger (`src/engine/token.ts`),
+which is a conserved fixed-supply credit ledger used inside the colony today.
+
 ## The promise
 
 Prove it in simulation. Harden it with red-team. Settle it on-chain. Compound

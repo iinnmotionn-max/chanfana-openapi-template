@@ -61,6 +61,11 @@ Lumi is a living system, not a static dashboard:
   Cron Trigger pulses her hourly when deployed. Engine phase durations land
   in `metrics` (cycle/learn/audit/sweep/pulse ms) — the Tech realm's
   performance monitor.
+- **Calm cockpit**: the dashboard is animation-heavy, so it self-throttles —
+  when the browser tab is backgrounded (`visibilitychange`) every animation
+  freezes (`html.calm`) and polling stops, costing the CPU nothing when
+  unwatched. The live refresh is 8s. There is deliberately **no** background
+  compute of any kind (no miner, no worker, no WASM) — just polling + SVG/CSS.
 - **Knowledge** (`knowledge`): expeditions to free public sources (Hugging
   Face Hub, CoinGecko) are banked permanently and earn Insight.
 - **Aura layer** (`auras`): personality + design profiles of clients, brands,
@@ -92,6 +97,29 @@ that measures, learns, and reallocates**:
    discipline) merged from Lumi, Reg, and the Databank's agent registry. DNA
    shapes position sizing and behavior, so bots are individuals, not clones.
 
+### Every trade takes profit and cuts losses
+
+Scoring and evolution work across *many* trades; this rule protects *each* one.
+A position used to close only when the strategy signal flipped — so winners
+rode all the way back to flat and losers bled until a reversal. That was the
+leak. Now every open position is managed **on every tick** (`src/engine/trader.ts`):
+
+- **Take-profit** — bank the win once the position is up by 3–7% (the band is
+  set by the bot's `patience` DNA: calmer souls let winners run further).
+- **Stop-loss** — cut the loss once it's down 1.5–2.3% (set by `risk` DNA).
+  The stop always sits *inside* the take-profit, so every trade carries
+  positive asymmetry: losses are capped small, wins are allowed to be larger.
+- **Signal reversal** still exits too, and flips into the opposite side.
+- After a take-profit/stop-loss exit the bot waits one tick before re-entering,
+  so it doesn't instantly re-open the trade it just closed.
+
+Each close records *why* in the trade's `reason` (`take-profit +5.2%`,
+`stop-loss -1.9%`, or the signal), so the ledger is self-explaining. This is a
+low-win-rate / high-expectancy profile by design: many small capped losses
+offset by fewer, larger wins. On the seeded tape the colony runs net-positive
+rather than bleeding. Above this sits the 40%-of-starting-balance kill-switch as
+the last line of defence.
+
 ### Safety stance
 
 - **Paper trading only.** Deterministic simulated market (seeded random walk).
@@ -109,6 +137,7 @@ migrations/            Databank schema (agents, strategies, bots, trades,
 src/engine/market.ts   Deterministic seeded price series (reproducible ticks)
 src/engine/strategies.ts  SMA-cross, momentum, mean-reversion (parameterized)
 src/engine/trader.ts   Runs a cycle: signals → executes → records trades,
+                       take-profit/stop-loss manages each position every tick,
                        compounds balances, kill-switch pauses drained bots,
                        Reporter writes cycle report
 src/engine/learning.ts Observer metrics + retire/evolve/reassign + report
@@ -172,8 +201,12 @@ evidence of the last.
 ## Roadmap (seeded as live goals in the Databank)
 
 1. **Prove the loop** — colony seeds, trades, learns, evolves; tests green. ✅ this build
-2. **Raise the win rate** — run many cycles, let selection pressure work; tune
-   score floor and mutation ranges from evidence.
+2. **Stop the bleed** — per-trade take-profit/stop-loss caps every loss and
+   banks every win; the colony runs net-positive on the seeded tape. ✅
+3. **Raise the win rate** — run many cycles, let selection pressure and the
+   trend filter work; tune score floor, mutation ranges, and the TP/SL bands
+   from evidence. (Note: the current TP/SL profile trades a *lower* win rate for
+   *higher* expectancy — retune the bands if a higher win % is the goal.)
 3. **Live data adapter** — swap the simulated feed for a real market data
    source behind the same `PriceFeed` interface (still paper execution).
 4. **Scheduled autonomy** — Cloudflare Cron Trigger runs `engine/run` +
