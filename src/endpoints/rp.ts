@@ -1,0 +1,112 @@
+// InMotion RP — the bridge between the Roblox roleplay city and the AETHER
+// economy. A Roblox game server calls POST /rp/grant to credit a player's
+// in-ecosystem AETHER when they earn it in the city (paychecks, jobs, events).
+//
+// Honest by default: the bridge is OFF until the operator sets RP_SHARED_SECRET.
+// Every grant flows treasury → player through the ledger's reward(), so the
+// fixed AETHER supply stays conserved and the Guardian audit keeps passing.
+// The game never mints — it asks the treasury, which caps at what it holds.
+
+import { contentJson, OpenAPIRoute } from "chanfana";
+import { z } from "zod";
+import { AppContext } from "../types";
+import { reward } from "../engine/token";
+import { newAddress, walletOverview } from "../engine/wallet";
+
+function configuredSecret(env: unknown): string {
+	const v = (env as Record<string, unknown> | null | undefined)?.RP_SHARED_SECRET;
+	return typeof v === "string" ? v : "";
+}
+
+// A stable, safe owner handle for a Roblox player: rp-<userId>.
+function rpOwner(userId: number): string {
+	return `rp-${Math.trunc(userId)}`;
+}
+
+// Open the player's AETHER wallet once (zero balance — supply-neutral), then
+// return the canonical owner handle. Idempotent.
+async function ensureRpWallet(db: D1Database, userId: number, name: string): Promise<string> {
+	const owner = rpOwner(userId);
+	const exists = await db.prepare("SELECT 1 AS one FROM aether_accounts WHERE owner = ?").bind(owner).first<{ one: number }>();
+	if (!exists) {
+		await db
+			.prepare("INSERT INTO aether_accounts (owner, kind, balance, address, updated_at) VALUES (?, 'rp', 0, ?, CURRENT_TIMESTAMP)")
+			.bind(owner, newAddress())
+			.run();
+	} else if (name) {
+		// keep the display name fresh without touching balance
+		await db.prepare("UPDATE aether_accounts SET updated_at = CURRENT_TIMESTAMP WHERE owner = ?").bind(owner).run();
+	}
+	return owner;
+}
+
+export class RpGrant extends OpenAPIRoute {
+	public schema = {
+		tags: ["InMotion RP"],
+		summary: "Credit AETHER to a Roblox player (treasury → player, supply-conserved)",
+		request: {
+			body: contentJson(
+				z.object({
+					userId: z.number().int().positive(),
+					name: z.string().max(50).optional(),
+					amount: z.number().positive().max(100000),
+					reason: z.string().max(120).default("rp"),
+					secret: z.string().default(""),
+				}),
+			),
+		},
+		responses: {
+			"200": { description: "AETHER credited", ...contentJson({ success: z.boolean(), result: z.any() }) },
+			"401": { description: "Bad shared secret" },
+			"503": { description: "RP bridge disabled (RP_SHARED_SECRET not set)" },
+		},
+	};
+
+	public async handle(c: AppContext) {
+		const { body } = await this.getValidatedData<typeof this.schema>();
+		const secret = configuredSecret(c.env);
+		if (!secret) {
+			return c.json({ success: false, errors: [{ code: 5031, message: "RP bridge disabled — set RP_SHARED_SECRET" }] }, 503);
+		}
+		if (body.secret !== secret) {
+			return c.json({ success: false, errors: [{ code: 4011, message: "Bad shared secret" }] }, 401);
+		}
+
+		const owner = await ensureRpWallet(c.env.DB, body.userId, body.name ?? "");
+		const before = await c.env.DB.prepare("SELECT balance FROM aether_accounts WHERE owner = ?").bind(owner).first<{ balance: number }>();
+		await reward(c.env.DB, owner, body.amount, `rp:${body.reason}`);
+		const after = await c.env.DB.prepare("SELECT balance FROM aether_accounts WHERE owner = ?").bind(owner).first<{ balance: number }>();
+
+		const granted = Number(((after?.balance ?? 0) - (before?.balance ?? 0)).toFixed(2));
+		return {
+			success: true,
+			result: {
+				userId: body.userId,
+				owner,
+				granted, // may be < amount if the treasury is nearly dry (never invents supply)
+				balance: Number((after?.balance ?? 0).toFixed(2)),
+			},
+		};
+	}
+}
+
+export class RpPlayer extends OpenAPIRoute {
+	public schema = {
+		tags: ["InMotion RP"],
+		summary: "A Roblox player's AETHER wallet (balance + recent history)",
+		request: { params: z.object({ userId: z.coerce.number().int().positive() }) },
+		responses: {
+			"200": { description: "Player wallet", ...contentJson({ success: z.boolean(), result: z.any() }) },
+			"404": { description: "No wallet for this player yet" },
+		},
+	};
+
+	public async handle(c: AppContext) {
+		const { params } = await this.getValidatedData<typeof this.schema>();
+		const view = await walletOverview(c.env.DB, rpOwner(params.userId));
+		if ("error" in view) {
+			return c.json({ success: false, errors: [{ code: 4042, message: "No wallet for this player yet" }] }, 404);
+		}
+		return { success: true, result: view };
+	}
+}

@@ -23,7 +23,7 @@ the cockpit and `GET /realms`.
 
 | Realm        | Mission                                                                                   | Status is driven by            |
 | ------------ | ------------------------------------------------------------------------------------------ | ------------------------------ |
-| **Invest / Aether** | Grow paper capital with flawless ledger integrity + active learning, and run the AI-credit economy: AETHER token ledger, in-app web3 wallet, DeFi (AMM pool / vaults / lending). It handles money. | `POST /realms/invest/audit` |
+| **Invest / Aether** | Grow paper capital with flawless ledger integrity + active learning, and run the AI-credit economy: AETHER token ledger, in-app web3 wallet, DeFi (AMM pool / vaults / lending), and the InMotion RP bridge (Roblox city players earn conserved AETHER). It handles money. | `POST /realms/invest/audit` |
 | **Guardian** | Protection, security, and privacy — "the man around the house". Sweeps the whole system.   | `POST /realms/guardian/sweep`  |
 | **Tech**     | Dev/tech support diagnostics: table counts, ticks, active bots, every realm's health.      | `GET /realms/tech/status`      |
 | **Wellness** | Creator check-ins: mood, energy, streaks. The colony works for a human.                    | `POST /realms/wellness/checkin` |
@@ -222,6 +222,7 @@ Full list is auto-documented at `GET /` (OpenAPI). Grouped by realm/subsystem:
 | **DeFi** | `GET /defi` · `POST /defi/pool/{add,remove}` `/defi/swap` `/defi/vault/{deposit,withdraw}` `/defi/{borrow,repay}` | AMM pool, vaults, lending |
 | **Shield** | `GET /shield` · `POST /shield/scan` `/shield/kyc` | Security posture, red-team, privacy-first KYC |
 | **Growth** | `GET /growth` `/growth/posts` `/growth/leads` `/growth/deals` `/growth/connectors` `/growth/analytics` · `POST /growth/{post,campaign,lead,scout,connect,deal}` … | Content, campaigns, leads, connectors, deals |
+| **InMotion RP** | `POST /rp/grant` · `GET /rp/player/:userId` | Roblox city bridge: credit players' AETHER (treasury→player, secret-gated via `RP_SHARED_SECRET`, off until set) |
 | **Aura** | `GET /auras` `/auras/:id/brief` · `POST /auras` | Consent-gated profiles + personalization briefs |
 | **Records / cockpit** | `GET /reports` · `GET /goals` `POST/PATCH` · `GET /analytics/overview` · `GET /dash` · `GET /` | Feed, goals, one-call cockpit payload, dashboard, OpenAPI |
 

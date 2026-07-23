@@ -23,6 +23,9 @@ export default defineWorkersConfig({
 					compatibilityFlags: ["experimental", "nodejs_compat"],
 					bindings: {
 						MIGRATIONS: migrations,
+						// The RP bridge is secret-gated; give tests a known secret so
+						// both the happy path and the 401 path are exercised.
+						RP_SHARED_SECRET: "test-rp-secret",
 					},
 				},
 			},
