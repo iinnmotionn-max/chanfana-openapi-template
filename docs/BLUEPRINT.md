@@ -168,6 +168,9 @@ src/dash/index.ts      Lumi: the self-contained Creator Cockpit — one 1.6k-lin
                        HTML doc, inline SVG charts, /analytics/overview polling,
                        calm-mode throttling. No CDN, no build step.
 sui/aether/            Move package for the on-chain AETHER coin (publish.sh)
+roblox/                InMotion RP kit: server-side Luau (AetherBridge +
+                       Paychecks) that pays Roblox city players conserved
+                       AETHER through POST /rp/grant (see roblox/README.md)
 scripts/               dev.sh (local) + golive.sh (Cloudflare deploy)
 tests/integration/     11 suites, 83 tests: seed→trade→learn→evolve; audit→
                        sweep→check-in; aether, wallet, defi, shield, growth(x),
