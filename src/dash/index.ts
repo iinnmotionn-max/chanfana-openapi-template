@@ -388,6 +388,22 @@ export const dashHtml = `<!doctype html>
   .aethp-rate b { color: var(--ink-2); font-variant-numeric: tabular-nums; }
   .aethp-foot { font-size: 11px; color: var(--muted); margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
   .aethp-foot .warn { color: var(--warning); font-weight: 600; }
+  /* INMOTION RP — city economy */
+  .rp-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+  @media (max-width: 820px) { .rp-tiles { grid-template-columns: repeat(2, 1fr); } }
+  .rp-tile { background: var(--page); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .rp-tile .n { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .rp-tile .l { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .rp-flow { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .rp-flow b { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .rp-tx { display: flex; gap: 8px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--grid); align-items: baseline; }
+  .rp-tx:last-child { border-bottom: none; }
+  .rp-tx .who { color: var(--ink-2); }
+  .rp-tx .memo { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rp-tx .amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; flex: none; }
+  .rp-tx .amt.earn { color: var(--good); }
+  .rp-tx .amt.spend { color: var(--series-3); }
+  .rp-off { font-size: 12px; color: var(--muted); }
   /* SHIELD — the showpiece */
   #shield-card { margin-bottom: 16px; position: relative; overflow: hidden; }
   .shield-card::before { content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -618,6 +634,11 @@ export const dashHtml = `<!doctype html>
   <div id="defi-panel"></div>
 </div>
 
+<div class="card" id="rp-card">
+  <h2>INMOTION RP — the Roblox city on the AETHER ledger</h2>
+  <div id="rp-panel"></div>
+</div>
+
 <div class="card" id="growth-card">
   <h2>GROWTH — PR · content · campaigns · lead-gen</h2>
   <div id="growth-panel"></div>
@@ -756,7 +777,35 @@ function render(d) {
   renderWallet(d.wallets || []);
   renderDefi(d.defi || null);
   renderGrowth(d.growth || null);
+  renderRp(d.rp || null);
   firstPaint = false;
+}
+
+function renderRp(rp) {
+  const el = $("rp-panel");
+  if (!el) return;
+  if (!rp || !rp.citizens) {
+    el.innerHTML = '<div class="rp-off">No citizens yet. The city comes alive when the Roblox bridge makes its first grant — ' +
+      'deploy the Worker, set <b>RP_SHARED_SECRET</b>, and drop the <b>roblox/</b> kit into Studio (see roblox/README.md).</div>';
+    return;
+  }
+  const net = rp.earned - rp.spent;
+  let out =
+    '<div class="rp-tiles">' +
+      '<div class="rp-tile"><div class="n">' + rp.citizens + '</div><div class="l">citizens</div></div>' +
+      '<div class="rp-tile"><div class="n">' + fmt(rp.cityBalance, 0) + '</div><div class="l">city balance · AETHER</div></div>' +
+      '<div class="rp-tile"><div class="n">' + fmt(rp.earned, 0) + '</div><div class="l">earned (paychecks · jobs)</div></div>' +
+      '<div class="rp-tile"><div class="n">' + fmt(rp.spent, 0) + '</div><div class="l">spent (shops · rent)</div></div>' +
+    '</div>' +
+    '<div class="rp-flow">treasury ⇄ city flow: <b>' + (net >= 0 ? "+" : "") + fmt(net, 0) + ' AETHER</b> net into citizens’ pockets · supply conserved</div>';
+  const txs = (rp.ledger || []).map(t => {
+    const earn = String(t.to_owner).indexOf("rp-") === 0;
+    return '<div class="rp-tx"><span class="who">' + esc(earn ? t.to_owner : t.from_owner) + '</span>' +
+      '<span class="memo">' + esc(String(t.memo || "").replace(/^rp:/, "")) + '</span>' +
+      '<span class="amt ' + (earn ? "earn" : "spend") + '">' + (earn ? "+" : "−") + fmt(t.amount, 0) + '</span></div>';
+  }).join("");
+  out += txs || '<div class="rp-off">No city transactions yet.</div>';
+  el.innerHTML = out;
 }
 
 function renderGrowth(g) {

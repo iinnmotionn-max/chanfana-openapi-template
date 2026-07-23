@@ -84,6 +84,32 @@ export class AnalyticsOverview extends OpenAPIRoute {
 			connectorStatus(db, c.env),
 		]);
 
+		// InMotion RP — the Roblox city economy over the same conserved ledger.
+		// Grants are treasury→rp rewards with memo 'rp:*'; spends flow back.
+		const [rpCitizens, rpEarned, rpSpent, rpLedger] = await Promise.all([
+			db
+				.prepare("SELECT COUNT(*) as n, COALESCE(SUM(balance), 0) as bal FROM aether_accounts WHERE kind = 'rp'")
+				.first<{ n: number; bal: number }>(),
+			db
+				.prepare("SELECT COALESCE(SUM(amount), 0) as v FROM aether_ledger WHERE to_owner LIKE 'rp-%' AND memo LIKE 'rp:%'")
+				.first<{ v: number }>(),
+			db
+				.prepare("SELECT COALESCE(SUM(amount), 0) as v FROM aether_ledger WHERE from_owner LIKE 'rp-%' AND memo LIKE 'rp:%'")
+				.first<{ v: number }>(),
+			db
+				.prepare(
+					"SELECT from_owner, to_owner, amount, memo, created_at FROM aether_ledger WHERE memo LIKE 'rp:%' ORDER BY id DESC LIMIT 8",
+				)
+				.all(),
+		]);
+		const rp = {
+			citizens: rpCitizens?.n ?? 0,
+			cityBalance: Number((rpCitizens?.bal ?? 0).toFixed(2)),
+			earned: Number((rpEarned?.v ?? 0).toFixed(2)),
+			spent: Number((rpSpent?.v ?? 0).toFixed(2)),
+			ledger: rpLedger.results,
+		};
+
 		const botRows = bots.results.map(decorateBot);
 		const closedRows = closedTrades.results;
 
@@ -135,6 +161,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				wallets,
 				defi,
 				growth: { ...growth, deals, connectors },
+				rp,
 			},
 		};
 	}

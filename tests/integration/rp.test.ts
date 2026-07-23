@@ -85,4 +85,19 @@ describe("InMotion RP — Roblox bridge into the AETHER economy", () => {
 		const res = await post("/rp/spend", { userId: 424242, amount: 5, secret: SECRET });
 		expect(res.status).toBe(400);
 	});
+
+	it("the analytics overview carries the city economy for the cockpit", async () => {
+		await post("/rp/grant", { userId: 42, name: "Citizen", amount: 60, reason: "paycheck", secret: SECRET });
+		await post("/rp/spend", { userId: 42, amount: 10, reason: "coffee", secret: SECRET });
+
+		const res = await get("/analytics/overview");
+		expect(res.status).toBe(200);
+		const rp = res.body.result.rp;
+		expect(rp.citizens).toBeGreaterThanOrEqual(1);
+		expect(rp.earned).toBeGreaterThanOrEqual(60);
+		expect(rp.spent).toBeGreaterThanOrEqual(10);
+		expect(rp.cityBalance).toBe(rp.earned - rp.spent);
+		expect(rp.ledger.length).toBeGreaterThanOrEqual(2);
+		expect(String(rp.ledger[0].memo)).toMatch(/^rp:/);
+	});
 });
