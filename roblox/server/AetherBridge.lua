@@ -58,6 +58,37 @@ function AetherBridge.grant(userId: number, name: string, amount: number, reason
 	return decoded.result.granted, decoded.result.balance
 end
 
+-- Spend a player's AETHER in the city (shops, rent, fines). Flows player →
+-- treasury on the ledger. Returns (true, newBalance) or (false, reason) —
+-- an overspend comes back (false, ...) with the balance untouched, so shops
+-- must check the result before handing over goods.
+function AetherBridge.spend(userId: number, amount: number, reason: string): (boolean, string | number)
+	local secret = sharedSecret()
+	if secret == "" then
+		return false, "RP_SHARED_SECRET StringValue missing in ServerStorage — bridge off"
+	end
+	local ok, response = pcall(function()
+		return HttpService:PostAsync(
+			AetherBridge.BaseUrl .. "/rp/spend",
+			HttpService:JSONEncode({
+				userId = userId,
+				amount = amount,
+				reason = reason,
+				secret = secret,
+			}),
+			Enum.HttpContentType.ApplicationJson
+		)
+	end)
+	if not ok then
+		return false, tostring(response)
+	end
+	local decoded = HttpService:JSONDecode(response)
+	if not decoded.success then
+		return false, "insufficient balance"
+	end
+	return true, decoded.result.balance
+end
+
 -- Read a player's AETHER balance (for leaderstats / ATM UIs). Returns balance
 -- or nil if the player has no wallet yet (they get one on first grant).
 function AetherBridge.balance(userId: number): number?

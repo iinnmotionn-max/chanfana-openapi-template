@@ -8,8 +8,9 @@ for in-city work; balances show in leaderstats.
 
 | File | Goes in | What it does |
 |---|---|---|
-| `server/AetherBridge.lua` | ServerScriptService (ModuleScript) | `grant()` and `balance()` — calls the Worker's `/rp/grant` and `/rp/player/:id` |
+| `server/AetherBridge.lua` | ServerScriptService (ModuleScript) | `grant()`, `spend()`, `balance()` — calls the Worker's `/rp/grant`, `/rp/spend`, `/rp/player/:id` |
 | `server/Paychecks.server.lua` | ServerScriptService (Script) | Pays every player 25 AETHER each 10 min + AETHER leaderstats |
+| `server/Shop.server.lua` | ServerScriptService (Script) | Server-authoritative shop: `BuyItem` RemoteFunction, ledger-confirmed purchases, catalog in AETHER |
 
 ## Setup (5 steps, ~5 minutes)
 
@@ -54,6 +55,15 @@ local AetherBridge = require(game.ServerScriptService.AetherBridge)
 AetherBridge.grant(player.UserId, player.Name, 100, "heist-completed")
 ```
 
+Charge for anything (the sale only completes if the ledger accepts it):
+
+```lua
+local ok, newBalance = AetherBridge.spend(player.UserId, 250, "car-dealership")
+if ok then --[[ hand over the car ]] end
+```
+
 Reasons land in the ledger memo (`rp:<reason>`), so the cockpit's Aether panel
 and `/aether/ledger` show exactly what the city paid for. Player wallets appear
-in the cockpit WALLET panel as `rp-<userId>` (kind `rp`).
+in the cockpit WALLET panel as `rp-<userId>` (kind `rp`). The loop is closed:
+paychecks flow treasury → players, purchases flow players → treasury, and the
+Guardian audit proves total supply never drifts.

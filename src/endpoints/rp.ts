@@ -10,7 +10,7 @@
 import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
-import { reward } from "../engine/token";
+import { reward, spend } from "../engine/token";
 import { newAddress, walletOverview } from "../engine/wallet";
 
 function configuredSecret(env: unknown): string {
@@ -85,6 +85,57 @@ export class RpGrant extends OpenAPIRoute {
 				owner,
 				granted, // may be < amount if the treasury is nearly dry (never invents supply)
 				balance: Number((after?.balance ?? 0).toFixed(2)),
+			},
+		};
+	}
+}
+
+export class RpSpend extends OpenAPIRoute {
+	public schema = {
+		tags: ["InMotion RP"],
+		summary: "A player spends AETHER in the city (player → treasury, supply-conserved)",
+		request: {
+			body: contentJson(
+				z.object({
+					userId: z.number().int().positive(),
+					amount: z.number().positive().max(100000),
+					reason: z.string().max(120).default("purchase"),
+					secret: z.string().default(""),
+				}),
+			),
+		},
+		responses: {
+			"200": { description: "AETHER spent", ...contentJson({ success: z.boolean(), result: z.any() }) },
+			"400": { description: "Insufficient balance or unknown player" },
+			"401": { description: "Bad shared secret" },
+			"503": { description: "RP bridge disabled (RP_SHARED_SECRET not set)" },
+		},
+	};
+
+	public async handle(c: AppContext) {
+		const { body } = await this.getValidatedData<typeof this.schema>();
+		const secret = configuredSecret(c.env);
+		if (!secret) {
+			return c.json({ success: false, errors: [{ code: 5031, message: "RP bridge disabled — set RP_SHARED_SECRET" }] }, 503);
+		}
+		if (body.secret !== secret) {
+			return c.json({ success: false, errors: [{ code: 4011, message: "Bad shared secret" }] }, 401);
+		}
+
+		// Spends only debit an existing wallet — a player with no wallet has
+		// nothing to spend, so unlike grants we don't create one here.
+		const owner = rpOwner(body.userId);
+		const result = await spend(c.env.DB, owner, body.amount, `rp:${body.reason}`);
+		if ("error" in result) {
+			return c.json({ success: false, errors: [{ code: 4001, message: result.error }] }, 400);
+		}
+		return {
+			success: true,
+			result: {
+				userId: body.userId,
+				owner,
+				spent: body.amount,
+				balance: Number(result.balances[owner].toFixed(2)),
 			},
 		};
 	}

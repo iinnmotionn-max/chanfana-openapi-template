@@ -60,4 +60,29 @@ describe("InMotion RP — Roblox bridge into the AETHER economy", () => {
 		const res = await get("/rp/player/999999");
 		expect(res.status).toBe(404);
 	});
+
+	it("spends back to the treasury and rejects overspends", async () => {
+		await post("/rp/grant", { userId: 777, name: "Shopper", amount: 200, reason: "paycheck", secret: SECRET });
+
+		const buy = await post("/rp/spend", { userId: 777, amount: 80, reason: "car", secret: SECRET });
+		expect(buy.status).toBe(200);
+		expect(buy.body.result.balance).toBe(120);
+
+		// Overspend is refused, balance untouched.
+		const over = await post("/rp/spend", { userId: 777, amount: 9999, reason: "mansion", secret: SECRET });
+		expect(over.status).toBe(400);
+		const player = await get("/rp/player/777");
+		expect(player.body.result.balance).toBe(120);
+
+		// Spending is auth-gated like granting, and supply still reconciles.
+		const noAuth = await post("/rp/spend", { userId: 777, amount: 10, secret: "wrong" });
+		expect(noAuth.status).toBe(401);
+		const aether = await get("/aether");
+		expect(aether.body.result.reconciled).toBe(true);
+	});
+
+	it("a never-granted player cannot spend (400, no wallet auto-created)", async () => {
+		const res = await post("/rp/spend", { userId: 424242, amount: 5, secret: SECRET });
+		expect(res.status).toBe(400);
+	});
 });

@@ -59,7 +59,7 @@ import {
 	GrowthAnalytics,
 	PostPublish,
 } from "./endpoints/growthx";
-import { RpGrant, RpPlayer } from "./endpoints/rp";
+import { RpGrant, RpPlayer, RpSpend } from "./endpoints/rp";
 import { dashHtml } from "./dash";
 
 // Start a Hono app
@@ -220,6 +220,7 @@ openapi.get("/growth/analytics", GrowthAnalytics);
 
 // InMotion RP — bridge the Roblox roleplay city to the AETHER economy
 openapi.post("/rp/grant", RpGrant);
+openapi.post("/rp/spend", RpSpend);
 openapi.get("/rp/player/:userId", RpPlayer);
 
 // Analytics (feeds the cockpit)

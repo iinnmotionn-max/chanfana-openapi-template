@@ -225,7 +225,7 @@ Full list is auto-documented at `GET /` (OpenAPI). Grouped by realm/subsystem:
 | **DeFi** | `GET /defi` · `POST /defi/pool/{add,remove}` `/defi/swap` `/defi/vault/{deposit,withdraw}` `/defi/{borrow,repay}` | AMM pool, vaults, lending |
 | **Shield** | `GET /shield` · `POST /shield/scan` `/shield/kyc` | Security posture, red-team, privacy-first KYC |
 | **Growth** | `GET /growth` `/growth/posts` `/growth/leads` `/growth/deals` `/growth/connectors` `/growth/analytics` · `POST /growth/{post,campaign,lead,scout,connect,deal}` … | Content, campaigns, leads, connectors, deals |
-| **InMotion RP** | `POST /rp/grant` · `GET /rp/player/:userId` | Roblox city bridge: credit players' AETHER (treasury→player, secret-gated via `RP_SHARED_SECRET`, off until set) |
+| **InMotion RP** | `POST /rp/grant` `/rp/spend` · `GET /rp/player/:userId` | Roblox city bridge: players earn (treasury→player) and spend (player→treasury) conserved AETHER; secret-gated via `RP_SHARED_SECRET`, off until set |
 | **Aura** | `GET /auras` `/auras/:id/brief` · `POST /auras` | Consent-gated profiles + personalization briefs |
 | **Records / cockpit** | `GET /reports` · `GET /goals` `POST/PATCH` · `GET /analytics/overview` · `GET /dash` · `GET /` | Feed, goals, one-call cockpit payload, dashboard, OpenAPI |
 
