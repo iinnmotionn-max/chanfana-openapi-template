@@ -24,7 +24,8 @@ function rpOwner(userId: number): string {
 }
 
 // Open the player's AETHER wallet once (zero balance — supply-neutral), then
-// return the canonical owner handle. Idempotent.
+// return the canonical owner handle. Idempotent. A first-time citizen is
+// chronicled in the Gaming realm's feed.
 async function ensureRpWallet(db: D1Database, userId: number, name: string): Promise<string> {
 	const owner = rpOwner(userId);
 	const exists = await db.prepare("SELECT 1 AS one FROM aether_accounts WHERE owner = ?").bind(owner).first<{ one: number }>();
@@ -33,11 +34,25 @@ async function ensureRpWallet(db: D1Database, userId: number, name: string): Pro
 			.prepare("INSERT INTO aether_accounts (owner, kind, balance, address, updated_at) VALUES (?, 'rp', 0, ?, CURRENT_TIMESTAMP)")
 			.bind(owner, newAddress())
 			.run();
+		await db
+			.prepare("INSERT INTO reports (author, kind, title, body, data, realm) VALUES ('reg', 'citizen', ?, ?, ?, 'gaming')")
+			.bind(
+				`New citizen: ${name || owner}`,
+				`${name || owner} opened an AETHER wallet in InMotion RP (${owner}).`,
+				JSON.stringify({ userId, owner, name }),
+			)
+			.run();
 	} else if (name) {
 		// keep the display name fresh without touching balance
 		await db.prepare("UPDATE aether_accounts SET updated_at = CURRENT_TIMESTAMP WHERE owner = ?").bind(owner).run();
 	}
 	return owner;
+}
+
+// Every successful bridge call stamps a passing rp-bridge check, so the Gaming
+// realm's status reflects a live, working bridge in the cockpit.
+async function recordBridgeCheck(db: D1Database, detail: string): Promise<void> {
+	await db.prepare("INSERT INTO checks (realm, name, status, detail) VALUES ('gaming', 'rp-bridge', 'pass', ?)").bind(detail).run();
 }
 
 export class RpGrant extends OpenAPIRoute {
@@ -78,6 +93,7 @@ export class RpGrant extends OpenAPIRoute {
 		const after = await c.env.DB.prepare("SELECT balance FROM aether_accounts WHERE owner = ?").bind(owner).first<{ balance: number }>();
 
 		const granted = Number(((after?.balance ?? 0) - (before?.balance ?? 0)).toFixed(2));
+		await recordBridgeCheck(c.env.DB, `grant ${granted} AETHER to ${owner} (${body.reason})`);
 		return {
 			success: true,
 			result: {
@@ -129,6 +145,7 @@ export class RpSpend extends OpenAPIRoute {
 		if ("error" in result) {
 			return c.json({ success: false, errors: [{ code: 4001, message: result.error }] }, 400);
 		}
+		await recordBridgeCheck(c.env.DB, `spend ${body.amount} AETHER by ${owner} (${body.reason})`);
 		return {
 			success: true,
 			result: {

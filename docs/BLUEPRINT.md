@@ -1,7 +1,7 @@
 # LUMI COLONY — System Blueprint
 
 Lumi is a multi-realm creator AI built on Cloudflare Workers + D1. She watches
-over **six realms** from one **Creator Cockpit** (`GET /dash`); the original
+over **seven realms** from one **Creator Cockpit** (`GET /dash`); the original
 self-improving paper-trading colony lives on as the **Invest** realm — now
 merged with **Aether** (it handles money and settles in AETHER, so trading,
 token, wallet and DeFi are one realm; internal key stays `invest`).
@@ -23,12 +23,13 @@ the cockpit and `GET /realms`.
 
 | Realm        | Mission                                                                                   | Status is driven by            |
 | ------------ | ------------------------------------------------------------------------------------------ | ------------------------------ |
-| **Invest / Aether** | Grow paper capital with flawless ledger integrity + active learning, and run the AI-credit economy: AETHER token ledger, in-app web3 wallet, DeFi (AMM pool / vaults / lending), and the InMotion RP bridge (Roblox city players earn conserved AETHER). It handles money. | `POST /realms/invest/audit` |
+| **Invest / Aether** | Grow paper capital with flawless ledger integrity + active learning, and run the AI-credit economy: AETHER token ledger, in-app web3 wallet, DeFi (AMM pool / vaults / lending) It handles money (the InMotion RP city settles on this same ledger, but lives in the Gaming realm). | `POST /realms/invest/audit` |
 | **Guardian** | Protection, security, and privacy — "the man around the house". Sweeps the whole system.   | `POST /realms/guardian/sweep`  |
 | **Tech**     | Dev/tech support diagnostics: table counts, ticks, active bots, every realm's health.      | `GET /realms/tech/status`      |
 | **Wellness** | Creator check-ins: mood, energy, streaks. The colony works for a human.                    | `POST /realms/wellness/checkin` |
 | **Shield**   | Web3 security — red-team scans, contract posture, decentralization scoring, privacy-first KYC (a hash, never an identity). | `POST /shield/scan` |
 | **Growth**   | PR, content drafting, campaigns, lead-gen; connectors for real publishing + a deals pipeline. | `GET /growth`, `POST /growth/scout` |
+| **Gaming**   | InMotion RP — the Roblox city. Citizens earn and spend conserved AETHER; every successful bridge call stamps a passing `rp-bridge` check. | `POST /rp/grant`, `POST /rp/spend` |
 
 - **Invest audit** runs five checks — `ledger-reconciliation` (every bot's
   starting balance + closed-trade PnL must equal its balance to the cent),

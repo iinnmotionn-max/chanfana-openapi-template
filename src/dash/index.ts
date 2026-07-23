@@ -1,8 +1,8 @@
 // Lumi — the creator's multi-realm intellect. A self-contained Creator Cockpit:
 // no CDNs, no build step. Reads /analytics/overview, renders inline SVG charts,
-// and gives the creator direct controls over six realms: Invest/Aether
+// and gives the creator direct controls over seven realms: Invest/Aether
 // (trading + AI-credit economy), Guardian (protection), Tech (diagnostics),
-// Wellness (check-ins), Shield (web3 security), Growth (PR/leads).
+// Wellness (check-ins), Shield (web3 security), Growth (PR/leads), Gaming (InMotion RP).
 // Palette: validated dark-surface steps (see docs/BLUEPRINT.md build rules).
 
 export const dashHtml = `<!doctype html>
@@ -634,8 +634,9 @@ export const dashHtml = `<!doctype html>
   <div id="defi-panel"></div>
 </div>
 
+<div class="section-h">GAMING REALM — InMotion RP · Roblox city</div>
 <div class="card" id="rp-card">
-  <h2>INMOTION RP — the Roblox city on the AETHER ledger</h2>
+  <h2>INMOTION RP — citizens · paychecks · shops, all on the AETHER ledger</h2>
   <div id="rp-panel"></div>
 </div>
 
@@ -724,7 +725,7 @@ export const dashHtml = `<!doctype html>
   </div>
 </div>
 
-<footer>Lumi (front-end intellect) · Reg (engine) · Databank (memory) — six realms: Invest/Aether · Guardian · Tech · Wellness · Shield · Growth. Paper trading only, every trade recorded, every lesson kept.</footer>
+<footer>Lumi (front-end intellect) · Reg (engine) · Databank (memory) — seven realms: Invest/Aether · Guardian · Tech · Wellness · Shield · Growth · Gaming. Paper trading only, every trade recorded, every lesson kept.</footer>
 
 <script>
 const $ = (id) => document.getElementById(id);

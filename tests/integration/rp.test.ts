@@ -86,6 +86,25 @@ describe("InMotion RP — Roblox bridge into the AETHER economy", () => {
 		expect(res.status).toBe(400);
 	});
 
+	it("lives in its own Gaming realm: mission, citizen report, live rp-bridge check", async () => {
+		await post("/rp/grant", { userId: 88, name: "Pioneer", amount: 30, reason: "paycheck", secret: SECRET });
+
+		const realms = await get("/realms");
+		const gaming = realms.body.result.find((r: any) => r.key === "gaming");
+		expect(gaming, "gaming realm exists").toBeTruthy();
+		expect(gaming.title).toBe("Gaming");
+		expect(gaming.mission).toContain("InMotion RP");
+		// The successful grant stamped a passing rp-bridge check for the realm.
+		expect(gaming.latestCheck?.name).toBe("rp-bridge");
+		expect(gaming.latestCheck?.status).toBe("pass");
+		// The realm has its own seeded goals.
+		expect(gaming.openGoals).toBeGreaterThanOrEqual(1);
+
+		// A first-time citizen is chronicled in the Gaming realm's feed.
+		const reports = await get("/reports");
+		expect(reports.body.result.some((r: any) => r.realm === "gaming" && r.kind === "citizen")).toBe(true);
+	});
+
 	it("the analytics overview carries the city economy for the cockpit", async () => {
 		await post("/rp/grant", { userId: 42, name: "Citizen", amount: 60, reason: "paycheck", secret: SECRET });
 		await post("/rp/spend", { userId: 42, amount: 10, reason: "coffee", secret: SECRET });
