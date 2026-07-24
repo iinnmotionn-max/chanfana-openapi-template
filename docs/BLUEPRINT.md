@@ -9,7 +9,7 @@ The core intelligences working as one unit:
 
 | Agent        | Role                                                                          | Where it lives                     |
 | ------------ | ----------------------------------------------------------------------------- | ---------------------------------- |
-| **Lumi**     | Front-end intellect. The Creator Cockpit: realms, visuals, goals, reports.    | `GET /dash` (`src/dash/`)           |
+| **Lumi**     | Front-end intellect AND orchestrator: commands every agent & model from the cockpit's command deck. | `GET /dash` (`src/dash/`) · `src/engine/orchestrator.ts` |
 | **Reg**      | Back-end operator. Runs the engine, audits, sweeps — records everything.      | API endpoints (`src/endpoints/`)    |
 | **Databank** | Memory. Every bot, strategy, trade, check, report, and goal — nothing lost.   | D1 database (`migrations/`)         |
 | **Observer** | Watches every cycle, measures performance.                                    | `src/engine/learning.ts` (metrics)  |
@@ -164,6 +164,9 @@ src/engine/            The colony's brains:
   sui.ts               Sui chain-link status (reads *_PACKAGE_ID / *_CAP secrets)
   shield.ts            Web3 security posture, red-team scan, privacy-first KYC
   growth.ts / growthx.ts  Content/campaigns/leads; connectors + deals pipeline
+  orchestrator.ts      Lumi's command deck: dispatch to any agent (real engine
+                       actions) or model (Claude via Anthropic API, honest
+                       adapter); command log in orchestrator_tasks
 src/endpoints/         Reg's API — thin HTTP layer over the engine (see table)
 src/dash/index.ts      Lumi: the self-contained Creator Cockpit — one 1.6k-line
                        HTML doc, inline SVG charts, /analytics/overview polling,
@@ -227,6 +230,7 @@ Full list is auto-documented at `GET /` (OpenAPI). Grouped by realm/subsystem:
 | **Shield** | `GET /shield` · `POST /shield/scan` `/shield/kyc` | Security posture, red-team, privacy-first KYC |
 | **Growth** | `GET /growth` `/growth/posts` `/growth/leads` `/growth/deals` `/growth/connectors` `/growth/analytics` · `POST /growth/{post,campaign,lead,scout,connect,deal}` … | Content, campaigns, leads, connectors, deals |
 | **InMotion RP** | `POST /rp/grant` `/rp/spend` · `GET /rp/player/:userId` | Roblox city bridge: players earn (treasury→player) and spend (player→treasury) conserved AETHER; secret-gated via `RP_SHARED_SECRET`, off until set |
+| **Orchestrator** | `GET /orchestrator` · `POST /orchestrator/dispatch` | Lumi commands every intelligence: internal agents run their REAL engine actions (reg→cycle, observer→learn, guardian→sweep, aether→study, shield→scan, growth→scout, lumi→pulse); Claude links via the Anthropic API (`ANTHROPIC_API_KEY`, honestly offline until set — counsel is banked into `knowledge`). Every dispatch logged in `orchestrator_tasks`. |
 | **Aura** | `GET /auras` `/auras/:id/brief` · `POST /auras` | Consent-gated profiles + personalization briefs |
 | **Records / cockpit** | `GET /reports` · `GET /goals` `POST/PATCH` · `GET /analytics/overview` · `GET /dash` · `GET /` | Feed, goals, one-call cockpit payload, dashboard, OpenAPI |
 

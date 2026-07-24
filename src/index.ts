@@ -60,6 +60,7 @@ import {
 	PostPublish,
 } from "./endpoints/growthx";
 import { RpGrant, RpPlayer, RpSpend } from "./endpoints/rp";
+import { OrchestratorDispatch, OrchestratorStatus } from "./endpoints/orchestrator";
 import { dashHtml } from "./dash";
 
 // Start a Hono app
@@ -222,6 +223,10 @@ openapi.get("/growth/analytics", GrowthAnalytics);
 openapi.post("/rp/grant", RpGrant);
 openapi.post("/rp/spend", RpSpend);
 openapi.get("/rp/player/:userId", RpPlayer);
+
+// Orchestrator — Lumi commands every agent & model (Jarvis-style)
+openapi.get("/orchestrator", OrchestratorStatus);
+openapi.post("/orchestrator/dispatch", OrchestratorDispatch);
 
 // Analytics (feeds the cockpit)
 openapi.get("/analytics/overview", AnalyticsOverview);

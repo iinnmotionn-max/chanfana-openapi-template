@@ -388,6 +388,54 @@ export const dashHtml = `<!doctype html>
   .aethp-rate b { color: var(--ink-2); font-variant-numeric: tabular-nums; }
   .aethp-foot { font-size: 11px; color: var(--muted); margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
   .aethp-foot .warn { color: var(--warning); font-weight: 600; }
+  /* ORCHESTRATOR — Lumi's command deck (Jarvis) */
+  #orch-card { position: relative; overflow: hidden; margin-bottom: 16px; }
+  #orch-card::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(640px 240px at 50% -30%, rgba(57,135,229,0.14), transparent 70%); }
+  .orch-crown { color: var(--series-4); margin-right: 4px; }
+  .orch-sub { font-size: 11.5px; color: var(--muted); margin-bottom: 14px; max-width: 720px; }
+  .orch-sub b { color: var(--ink-2); }
+  .orch-roster { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  @media (max-width: 900px) { .orch-roster { grid-template-columns: repeat(2, 1fr); } }
+  .orch-int { position: relative; background: var(--page); border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px 13px; cursor: pointer; transition: border-color .25s, transform .18s, box-shadow .3s; }
+  .orch-int:hover { transform: translateY(-2px); }
+  .orch-int.sel { border-color: var(--series-1); box-shadow: 0 0 0 1px var(--series-1) inset, 0 0 18px rgba(57,135,229,0.25); }
+  .orch-int.working { border-color: var(--series-4); }
+  .orch-int.working::after { content: ""; position: absolute; inset: -1px; border-radius: 10px; pointer-events: none;
+    border: 1px solid var(--series-4); animation: orch-scan 1.1s ease-in-out infinite; }
+  @keyframes orch-scan { 0%,100% { opacity: 0.15; } 50% { opacity: 0.9; box-shadow: 0 0 14px rgba(144,133,233,0.5); } }
+  .orch-int .n { display: flex; align-items: center; gap: 7px; font-weight: 700; font-size: 13px; }
+  .orch-core { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--good);
+    box-shadow: 0 0 6px rgba(12,163,12,0.8); animation: breathe 2.6s ease-in-out infinite; }
+  .orch-int.off .orch-core { background: var(--baseline); box-shadow: none; animation: none; }
+  .orch-int .k { margin-left: auto; font-size: 9px; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; }
+  .orch-int.model .k { color: var(--series-4); border-color: var(--series-4); }
+  .orch-int .r { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--series-1); margin: 3px 0 2px; }
+  .orch-int.off .r { color: var(--muted); }
+  .orch-int .d { font-size: 10.5px; color: var(--muted); line-height: 1.45; }
+  .orch-console { display: flex; align-items: center; gap: 8px; background: var(--page); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; }
+  .orch-prompt { color: var(--series-4); font-size: 16px; font-weight: 700; }
+  .orch-target-chip { font-size: 11px; font-weight: 700; color: var(--series-1); border: 1px solid var(--series-1);
+    border-radius: 999px; padding: 2px 10px; flex: none; text-transform: uppercase; letter-spacing: 0.5px; }
+  #orch-directive { flex: 1; background: none; border: none; color: var(--ink); font-size: 13px; padding: 6px 2px; }
+  #orch-directive:focus { outline: none; }
+  #orch-go { border-color: var(--series-1); color: var(--series-1); font-weight: 600; }
+  #orch-go:disabled { opacity: 0.5; }
+  .orch-log { display: flex; flex-direction: column; gap: 6px; }
+  .orch-task { display: flex; gap: 10px; align-items: baseline; font-size: 12px; padding: 6px 10px;
+    background: var(--page); border-left: 2px solid var(--series-1); border-radius: 6px; animation: slidein 0.35s ease-out both; }
+  .orch-task.offline { border-left-color: var(--baseline); }
+  .orch-task.failed { border-left-color: var(--critical); }
+  .orch-task .who { font-weight: 700; flex: none; }
+  .orch-task .dir { color: var(--muted); flex: none; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .orch-task .res { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .orch-task .st { margin-left: auto; flex: none; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 1px 8px; border-radius: 999px; border: 1px solid var(--good); color: var(--good); }
+  .orch-task.offline .st { border-color: var(--muted); color: var(--muted); }
+  .orch-task.failed .st { border-color: var(--critical); color: var(--critical); }
   /* INMOTION RP — city economy */
   .rp-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
   @media (max-width: 820px) { .rp-tiles { grid-template-columns: repeat(2, 1fr); } }
@@ -553,6 +601,19 @@ export const dashHtml = `<!doctype html>
     <h2>QUESTS — Lumi's task line</h2>
     <div id="quests" class="quests"></div>
   </div>
+</div>
+
+<div class="card" id="orch-card">
+  <h2><span class="orch-crown">◈</span> ORCHESTRATOR — Lumi commands every intelligence</h2>
+  <div class="orch-sub">Agents run their real engine actions on dispatch. Models link through their APIs — Claude comes online when <b>ANTHROPIC_API_KEY</b> is set. Every order and outcome is logged.</div>
+  <div class="orch-roster" id="orch-roster"></div>
+  <div class="orch-console">
+    <span class="orch-prompt">⌁</span>
+    <span class="orch-target-chip" id="orch-target-chip">lumi</span>
+    <input id="orch-directive" type="text" maxlength="2000" placeholder="Directive… (e.g. run a cycle · advise on risk limits)">
+    <button id="orch-go">Dispatch</button>
+  </div>
+  <div class="orch-log" id="orch-log"></div>
 </div>
 
 <div class="card" id="training-card">
@@ -779,7 +840,38 @@ function render(d) {
   renderDefi(d.defi || null);
   renderGrowth(d.growth || null);
   renderRp(d.rp || null);
+  renderOrchestrator(d.orchestrator || null);
   firstPaint = false;
+}
+
+// ---- ORCHESTRATOR: Lumi's command deck ----
+let orchTarget = "lumi", orchBusy = false;
+function renderOrchestrator(o) {
+  const rosterEl = $("orch-roster"), logEl = $("orch-log");
+  if (!rosterEl) return;
+  const roster = (o && o.roster) || [];
+  if (!roster.some(i => i.name === orchTarget)) orchTarget = roster.length ? roster[0].name : "lumi";
+  rosterEl.innerHTML = roster.map(i =>
+    '<div class="orch-int ' + (i.status === "offline" ? "off " : "") + (i.kind === "model" ? "model " : "") +
+      (i.name === orchTarget ? "sel " : "") + (orchBusy && i.name === orchTarget ? "working" : "") +
+      '" data-n="' + esc(i.name) + '">' +
+      '<div class="n"><span class="orch-core"></span>' + esc(i.name) + '<span class="k">' + esc(i.kind) + '</span></div>' +
+      '<div class="r">' + esc(i.role) + ' · ' + esc(i.status) + '</div>' +
+      '<div class="d">' + esc(i.detail) + '</div>' +
+    '</div>'
+  ).join("");
+  rosterEl.querySelectorAll(".orch-int").forEach(el => {
+    el.onclick = () => { orchTarget = el.dataset.n; const chip = $("orch-target-chip"); if (chip) chip.textContent = orchTarget; renderOrchestrator(o); };
+  });
+  const chip = $("orch-target-chip");
+  if (chip) chip.textContent = orchTarget;
+  if (logEl) {
+    logEl.innerHTML = ((o && o.tasks) || []).map(t =>
+      '<div class="orch-task ' + esc(t.status) + '"><span class="who">' + esc(t.target) + '</span>' +
+      '<span class="dir">' + esc(t.directive) + '</span><span class="res">' + esc(t.result) + '</span>' +
+      '<span class="st">' + esc(t.status) + '</span></div>'
+    ).join("") || '<div class="empty">No dispatches yet — pick an intelligence and give the order.</div>';
+  }
 }
 
 function renderRp(rp) {
@@ -1691,6 +1783,24 @@ $("btn-autopilot").onclick = (e) => {
   if (autopilot) autoPulse();
 };
 setInterval(autoPulse, 15000);
+
+// Orchestrator dispatch: fire the directive, run the working animation on the
+// selected card, refresh when the result lands.
+$("orch-go").onclick = async () => {
+  if (orchBusy) return;
+  const btn = $("orch-go"), input = $("orch-directive");
+  const directive = (input.value || "status").trim() || "status";
+  orchBusy = true; btn.disabled = true; btn.textContent = "Dispatching…";
+  const sel = document.querySelector('.orch-int.sel'); if (sel) sel.classList.add("working");
+  try {
+    await fetch("/orchestrator/dispatch", { method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target: orchTarget, directive: directive }) });
+    input.value = "";
+    await load();
+  } catch (e) {} finally { orchBusy = false; btn.disabled = false; btn.textContent = "Dispatch"; }
+};
+$("orch-directive").addEventListener("keydown", (e) => { if (e.key === "Enter") $("orch-go").click(); });
 
 // ---- AETH design preview: swap-preview math + candidate-chain selection ----
 // Pure UI. No money moves — this only mirrors the intended 100:1 credits⇄AETH rate.
