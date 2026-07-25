@@ -38,8 +38,10 @@ describe("Total Command — one bar, all control, behind the authority ledger", 
 		expect(byScope.spend).toBe(false);
 		expect(byScope.publish).toBe(false);
 		expect(byScope.command).toBe(false);
-		// The boundary is stated, not hidden.
-		expect(boundary).toContain("cannot control your computer");
+		// The boundary is stated, not hidden — and it names the one real path to
+		// the machine rather than claiming there is none.
+		expect(boundary).toContain("never touch your computer directly");
+		expect(boundary).toContain("machine");
 	});
 
 	it("routes a plain-English order to the right capability and runs it for real", async () => {

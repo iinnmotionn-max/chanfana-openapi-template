@@ -338,6 +338,6 @@ export async function commandOverview(db: D1Database) {
 		authority: await getAuthority(db),
 		capabilities: CAPABILITIES.map((c) => ({ id: c.id, scope: c.scope, realm: c.realm, summary: c.summary, triggers: c.triggers })),
 		boundary:
-			"Lumi commands everything inside this system. She runs in a Cloudflare Worker — no filesystem, shell, or OS access, so she cannot control your computer. That needs an agent running on your machine.",
+			"Lumi commands everything inside this system. This Worker has no filesystem, shell, or OS access, so it can never touch your computer directly — the only path to your machine is the `machine` capability, which queues work for the local agent you run yourself (agent/README.md). That agent holds the veto: allowlist, no shell, your confirmation.",
 	};
 }
