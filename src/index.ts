@@ -62,6 +62,7 @@ import {
 import { RpGrant, RpPlayer, RpSpend } from "./endpoints/rp";
 import { OrchestratorCouncil, OrchestratorDispatch, OrchestratorStatus } from "./endpoints/orchestrator";
 import { AuthorityGrant, CommandSpeak, CommandStatus } from "./endpoints/command";
+import { LocalNext, LocalResult, LocalStatus } from "./endpoints/local";
 import { dashHtml } from "./dash";
 
 // Start a Hono app
@@ -234,6 +235,11 @@ openapi.post("/orchestrator/council", OrchestratorCouncil);
 openapi.get("/command", CommandStatus);
 openapi.post("/command", CommandSpeak);
 openapi.patch("/command/authority", AuthorityGrant);
+
+// Local agent — the bridge to the creator's own machine (secret-gated)
+openapi.get("/local", LocalStatus);
+openapi.post("/local/next", LocalNext);
+openapi.post("/local/result", LocalResult);
 
 // Analytics (feeds the cockpit)
 openapi.get("/analytics/overview", AnalyticsOverview);

@@ -27,7 +27,7 @@ describe("Total Command — one bar, all control, behind the authority ledger", 
 		const res = await get("/command");
 		expect(res.status).toBe(200);
 		const { capabilities, authority, boundary } = res.body.result;
-		expect(capabilities.length).toBeGreaterThanOrEqual(14);
+		expect(capabilities.length).toBeGreaterThanOrEqual(15);
 		for (const id of ["trade", "learn", "audit", "sweep", "scan", "halt", "pay", "pulse", "council"]) {
 			expect(capabilities.some((c: any) => c.id === id), `${id} registered`).toBe(true);
 		}
@@ -108,6 +108,6 @@ describe("Total Command — one bar, all control, behind the authority ledger", 
 	it("the analytics overview carries command + authority for the cockpit", async () => {
 		const res = await get("/analytics/overview");
 		expect(res.body.result.command.capabilities.length).toBeGreaterThanOrEqual(14);
-		expect(res.body.result.command.authority.length).toBe(5);
+		expect(res.body.result.command.authority.length).toBe(6); // + machine
 	});
 });

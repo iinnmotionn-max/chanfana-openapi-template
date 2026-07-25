@@ -27,8 +27,9 @@ import { runScan } from "./shield";
 import { research, scoutMarket } from "./knowledge";
 import { transfer } from "./token";
 import { setHalt } from "./risk";
+import { localOverview, queueTask } from "./local";
 
-export type Scope = "observe" | "operate" | "spend" | "publish" | "command";
+export type Scope = "observe" | "operate" | "spend" | "publish" | "command" | "machine";
 
 export interface Authority {
 	scope: Scope;
@@ -227,6 +228,26 @@ export const CAPABILITIES: Capability[] = [
 			const q = rest(order, "ask claude") || rest(order, "ask") || order;
 			const r = await dispatch(db, env, "claude", q || "status");
 			return "error" in r ? r.error : r.result;
+		},
+	},
+	{
+		id: "machine",
+		scope: "machine",
+		realm: "tech",
+		summary: "Queue work for the agent on the creator's own computer",
+		triggers: ["on my machine", "on my computer", "local:", "machine:"],
+		run: async ({ db, env, order }) => {
+			// Strip a leading separator so "on my machine: git status" yields the
+			// bare command, not ": git status".
+			const t = (rest(order, "on my machine") || rest(order, "on my computer") || rest(order, "local:") || rest(order, "machine:"))
+				.replace(/^[:,\-—\s]+/, "")
+				.trim();
+			if (!t) return "say what to do, e.g. `on my machine: git status`";
+			const status = await localOverview(db, env);
+			const task = await queueTask(db, t);
+			return status.linked
+				? `queued for your machine (task #${task.id}): ${t} — the local agent decides whether to run it.`
+				: `queued (task #${task.id}), but no machine is linked yet: set LOCAL_AGENT_SECRET and run agent/lumi-agent.mjs.`;
 		},
 	},
 	{

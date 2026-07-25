@@ -172,6 +172,9 @@ src/dash/index.ts      Lumi: the self-contained Creator Cockpit — one 1.6k-lin
                        HTML doc, inline SVG charts, /analytics/overview polling,
                        calm-mode throttling. No CDN, no build step.
 sui/aether/            Move package for the on-chain AETHER coin (publish.sh)
+agent/                 lumi-agent.mjs — the local agent the creator runs on
+                       their own machine; the only piece that can touch a real
+                       filesystem or shell (see agent/README.md)
 roblox/                InMotion RP kit: server-side Luau (AetherBridge +
                        Paychecks) that pays Roblox city players conserved
                        AETHER through POST /rp/grant (see roblox/README.md)
@@ -231,6 +234,7 @@ Full list is auto-documented at `GET /` (OpenAPI). Grouped by realm/subsystem:
 | **Growth** | `GET /growth` `/growth/posts` `/growth/leads` `/growth/deals` `/growth/connectors` `/growth/analytics` · `POST /growth/{post,campaign,lead,scout,connect,deal}` … | Content, campaigns, leads, connectors, deals |
 | **InMotion RP** | `POST /rp/grant` `/rp/spend` · `GET /rp/player/:userId` | Roblox city bridge: players earn (treasury→player) and spend (player→treasury) conserved AETHER; secret-gated via `RP_SHARED_SECRET`, off until set |
 | **Total Command** | `GET /command` · `POST /command` · `PATCH /command/authority` | One bar, all control: a plain-English order routes deterministically to one of 14 registered capabilities across every realm, is checked against the **authority ledger** (`observe`/`operate` granted, `spend`/`publish`/`command` revoked until the creator grants them), then runs for real and is logged. Boundary stated in-product: Lumi runs in a Worker — no filesystem/shell/OS, so she cannot control the creator's computer. |
+| **Local Agent** | `GET /local` · `POST /local/next` `/local/result` | Lumi's hands on the creator's machine. She queues a task (needs the `machine` grant); `agent/lumi-agent.mjs`, run by the creator on their own computer, claims it and decides whether to run it — allowlist, no shell, per-task confirmation, sandboxed workdir. The Worker never executes anything; the machine always holds the veto. Secret-gated with `LOCAL_AGENT_SECRET`. |
 | **Orchestrator** | `GET /orchestrator` · `POST /orchestrator/dispatch` `/orchestrator/council` | Lumi commands every intelligence: internal agents run their REAL engine actions (reg→cycle, observer→learn, guardian→sweep, aether→study, shield→scan, growth→scout, lumi→pulse); Claude links via the Anthropic API (`ANTHROPIC_API_KEY`) and open models via Hugging Face Inference (`HF_TOKEN`) — each honestly offline until its key is set; counsel is banked into `knowledge`. Every dispatch logged in `orchestrator_tasks`. **Council** puts one directive to every model at once (parallel) and records who answered — never synthesizing a verdict from voices that didn't speak. |
 | **Aura** | `GET /auras` `/auras/:id/brief` · `POST /auras` | Consent-gated profiles + personalization briefs |
 | **Records / cockpit** | `GET /reports` · `GET /goals` `POST/PATCH` · `GET /analytics/overview` · `GET /dash` · `GET /` | Feed, goals, one-call cockpit payload, dashboard, OpenAPI |

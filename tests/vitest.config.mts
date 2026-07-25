@@ -26,6 +26,9 @@ export default defineWorkersConfig({
 						// The RP bridge is secret-gated; give tests a known secret so
 						// both the happy path and the 401 path are exercised.
 						RP_SHARED_SECRET: "test-rp-secret",
+						// Local-agent bridge: bound so both the 401 path and the
+						// happy path are exercised.
+						LOCAL_AGENT_SECRET: "test-agent-secret",
 					},
 				},
 			},
