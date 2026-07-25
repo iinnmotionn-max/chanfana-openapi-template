@@ -28,6 +28,7 @@ import { research, scoutMarket } from "./knowledge";
 import { transfer } from "./token";
 import { setHalt } from "./risk";
 import { localOverview, queueTask } from "./local";
+import { auditApp, recordAppAudit } from "./appintegrity";
 
 export type Scope = "observe" | "operate" | "spend" | "publish" | "command" | "machine";
 
@@ -113,6 +114,21 @@ export const CAPABILITIES: Capability[] = [
 			const a = await auditInvest(db);
 			await recordAudit(db, a);
 			return `audit ${a.ok ? "green" : "FAILED"} — ${a.checks.length} checks`;
+		},
+	},
+	{
+		id: "integrity",
+		scope: "observe",
+		realm: "guardian",
+		summary: "App integrity: does the code still agree with the database it runs on?",
+		triggers: ["integrity", "app integrity", "self check", "self-check"],
+		run: async ({ db, env }) => {
+			const a = await auditApp(db, env);
+			await recordAppAudit(db, a);
+			const broken = a.checks.filter((c) => c.status === "fail");
+			return a.ok
+				? `structural integrity green — ${a.score}/100, ${a.checks.length} checks, nothing has drifted`
+				: `INTEGRITY BREAK — ${broken.length} of ${a.checks.length} checks failed: ${broken.map((c) => c.name).join(", ")}`;
 		},
 	},
 	{

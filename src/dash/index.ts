@@ -492,6 +492,45 @@ export const dashHtml = `<!doctype html>
   .jv-res.unrouted .cap, .jv-res.failed .cap { color: var(--critical); }
   .jv-res .txt { color: var(--ink-2); white-space: pre-wrap; }
   .jv-boundary { font-size: 10.5px; color: var(--muted); margin-top: 9px; line-height: 1.5; }
+  /* Voice: mic in, speech out. Both are off until asked for. */
+  .jv-icon { flex: none; border: 1px solid var(--line); background: none; color: var(--muted);
+    border-radius: 8px; width: 32px; height: 30px; cursor: pointer; font-size: 13px; line-height: 1;
+    transition: color .18s, border-color .18s, box-shadow .18s; }
+  .jv-icon:hover:not(:disabled) { color: var(--ink-2); border-color: var(--ink-2); }
+  .jv-icon:disabled { opacity: 0.35; cursor: not-allowed; }
+  .jv-icon.on { color: var(--series-4); border-color: var(--series-4); box-shadow: 0 0 12px rgba(144,133,233,0.3); }
+  #jv-mic.listening { color: var(--critical); border-color: var(--critical);
+    box-shadow: 0 0 0 0 rgba(197,48,48,0.55); animation: jv-listen 1.3s ease-out infinite; }
+  @keyframes jv-listen { 0% { box-shadow: 0 0 0 0 rgba(197,48,48,0.5); } 100% { box-shadow: 0 0 0 12px rgba(197,48,48,0); } }
+  /* While she listens, the signal becomes a live waveform. */
+  .jv-wave { display: none; gap: 2px; align-items: center; height: 18px; flex: none; }
+  .jarvis.listening .jv-wave { display: flex; }
+  .jarvis.listening .jv-sig { display: none; }
+  .jv-wave i { display: block; width: 2px; background: var(--series-4); border-radius: 2px;
+    animation: jv-eq .9s ease-in-out infinite; }
+  .jv-wave i:nth-child(1) { height: 6px; animation-delay: 0s; }
+  .jv-wave i:nth-child(2) { height: 14px; animation-delay: .12s; }
+  .jv-wave i:nth-child(3) { height: 9px; animation-delay: .24s; }
+  .jv-wave i:nth-child(4) { height: 16px; animation-delay: .36s; }
+  .jv-wave i:nth-child(5) { height: 7px; animation-delay: .48s; }
+  @keyframes jv-eq { 0%,100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
+  .jv-heard { font-size: 11px; color: var(--series-4); margin-top: 8px; letter-spacing: 0.3px; }
+  .jv-heard:empty { display: none; }
+  /* The transcript: every order this session, newest first. */
+  .jv-res + .jv-res { margin-top: 5px; opacity: 0.72; }
+  .jv-res .ts { color: var(--muted); font-size: 10px; flex: none; margin-left: auto; }
+  /* Integrity chip — structural self-check, always in view beside the grants. */
+  .jv-integ { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; padding: 3px 10px;
+    border: 1px solid var(--line); border-radius: 999px; color: var(--muted); cursor: pointer; margin-left: auto; }
+  .jv-integ.ok { border-color: var(--good); color: var(--good); }
+  .jv-integ.broken { border-color: var(--critical); color: var(--critical); font-weight: 700;
+    animation: jv-alarm 1.8s ease-in-out infinite; }
+  @keyframes jv-alarm { 0%,100% { box-shadow: 0 0 0 0 rgba(197,48,48,0); } 50% { box-shadow: 0 0 12px 0 rgba(197,48,48,0.45); } }
+  .integ-breaks { margin-top: 10px; }
+  .integ-break { font-size: 11.5px; border-left: 2px solid var(--critical); padding: 6px 10px;
+    background: var(--page); border-radius: 0 7px 7px 0; margin-top: 5px; }
+  .integ-break .n { color: var(--critical); font-weight: 700; margin-right: 7px; }
+  .integ-break .f { display: block; color: var(--muted); font-size: 10.5px; margin-top: 3px; }
   /* Council chamber — side-by-side comparison of what each model said */
   .orch-chamber { margin-bottom: 12px; }
   .orch-chamber:empty { display: none; }
@@ -702,10 +741,15 @@ export const dashHtml = `<!doctype html>
   <div class="jarvis">
     <div class="jv-bar">
       <span class="jv-sig"><span class="jv-ring"></span><span class="jv-dot"></span></span>
-      <input id="jv-order" type="text" maxlength="2000" placeholder="Command Lumi… (halt · run a cycle · audit · sweep · scan · research X · council X · pay lumi 250)">
+      <span class="jv-wave"><i></i><i></i><i></i><i></i><i></i></span>
+      <input id="jv-order" type="text" maxlength="2000" placeholder="Command Lumi… (halt · run a cycle · audit · self check · sweep · scan · research X · council X)">
+      <button class="jv-icon" id="jv-mic" title="Speak an order">🎙</button>
+      <button class="jv-icon" id="jv-voice" title="Lumi speaks her replies aloud">🔈</button>
       <button id="jv-go">Execute</button>
     </div>
+    <div class="jv-heard" id="jv-heard"></div>
     <div class="jv-grants" id="jv-grants"></div>
+    <div class="integ-breaks" id="jv-integ-breaks"></div>
     <div class="jv-out" id="jv-out"></div>
     <div class="jv-boundary" id="jv-boundary"></div>
   </div>
@@ -906,6 +950,7 @@ let lastReportId = -1;      // slide-in the feed only when something new arrived
 let loadSeq = 0;            // monotonic guard: only the newest load may render
 let loading = false;        // in-flight guard: the 5s timer never stacks requests
 
+let lastAnalytics = null;
 async function load() {
   if (loading || document.hidden) return;   // never poll a hidden tab
   const seq = ++loadSeq;
@@ -914,7 +959,8 @@ async function load() {
     const res = await fetch("/analytics/overview?_=" + Date.now(), { cache: "no-store" });
     const { result } = await res.json();
     if (seq !== loadSeq) return;   // a newer load already won — drop this stale response
-    render(result || {});
+    lastAnalytics = result || {};
+    render(lastAnalytics);
     const tick = result && result.colony ? result.colony.tick : "—";
     $("status").textContent = "live · tick " + tick + " · updated " + new Date().toLocaleTimeString();
   } catch (e) {
@@ -949,7 +995,7 @@ function render(d) {
   renderRp(d.rp || null);
   renderOrchestrator(d.orchestrator || null);
   renderChamber(lastCouncil);
-  renderJarvis(d.command || null);
+  renderJarvis(d.command || null, d.integrity || null);
   renderMachine(d.local || null);
   firstPaint = false;
 }
@@ -1004,16 +1050,28 @@ function renderMachine(m) {
     (tasks ? '<div class="mc-tasks">' + tasks + '</div>' : '');
 }
 
-// JARVIS — grants, boundary, and the last order's outcome.
+// JARVIS — grants, boundary, structural integrity, and the order transcript.
 let lastCommand = null;
-function renderJarvis(cmd) {
+let transcript = [];   // every order this session, newest first
+let orderHistory = []; // for ↑/↓ recall in the input
+function renderJarvis(cmd, integrity) {
   const g = $("jv-grants"), b = $("jv-boundary"), o = $("jv-out");
   if (!g) return;
   if (cmd) {
-    g.innerHTML = '<span class="lbl">Authority</span>' + (cmd.authority || []).map(a =>
+    let chips = '<span class="lbl">Authority</span>' + (cmd.authority || []).map(a =>
       '<span class="jv-grant ' + (a.granted ? "on" : "") + '" data-s="' + esc(a.scope) + '" title="' + esc(a.detail) + '">' +
       (a.granted ? "✓ " : "") + esc(a.scope) + '</span>'
     ).join("");
+    // Structural integrity sits beside the grants because it is the one number
+    // that says whether anything else on this screen can be believed.
+    if (integrity) {
+      const broken = integrity.counts ? integrity.counts.fail : 0;
+      chips += '<span class="jv-integ ' + (broken > 0 ? "broken" : "ok") + '" id="jv-integ" ' +
+        'title="Structural self-check: does the code still agree with the database? Click to re-run.">' +
+        (broken > 0 ? "⚠ " + broken + " integrity break" + (broken > 1 ? "s" : "") : "◈ integrity " + integrity.score + "/100") +
+        '</span>';
+    }
+    g.innerHTML = chips;
     g.querySelectorAll(".jv-grant").forEach(el => {
       el.onclick = async () => {
         const on = el.classList.contains("on");
@@ -1023,13 +1081,28 @@ function renderJarvis(cmd) {
         await load();
       };
     });
+    const ic = $("jv-integ");
+    if (ic) ic.onclick = async () => {
+      ic.textContent = "◈ checking…";
+      try { await fetch("/integrity/scan", { method: "POST", cache: "no-store" }); } catch (e) {}
+      await load();
+    };
     if (b) b.textContent = cmd.boundary || "";
   }
+  // A failing check is useless without the remedy, so both are shown.
+  const bl = $("jv-integ-breaks");
+  if (bl) {
+    const fails = integrity ? (integrity.checks || []).filter(c => c.status === "fail") : [];
+    bl.innerHTML = fails.map(c =>
+      '<div class="integ-break"><span class="n">' + esc(c.name) + '</span>' + esc(c.detail) +
+      (c.fix ? '<span class="f">→ ' + esc(c.fix) + '</span>' : "") + '</div>'
+    ).join("");
+  }
   if (o) {
-    o.innerHTML = lastCommand
-      ? '<div class="jv-res ' + esc(lastCommand.status) + '"><span class="cap">' +
-        esc(lastCommand.capability || "unrouted") + '</span><span class="txt">' + esc(lastCommand.result) + '</span></div>'
-      : "";
+    o.innerHTML = transcript.map(t =>
+      '<div class="jv-res ' + esc(t.status) + '"><span class="cap">' + esc(t.capability || "unrouted") +
+      '</span><span class="txt">' + esc(t.result) + '</span><span class="ts">' + esc(t.at) + '</span></div>'
+    ).join("");
   }
 }
 
@@ -1983,21 +2056,106 @@ $("orch-go").onclick = async () => {
 $("orch-directive").addEventListener("keydown", (e) => { if (e.key === "Enter") $("orch-go").click(); });
 
 // Jarvis: speak an order, Lumi routes it, checks her grant, acts.
-$("jv-go").onclick = async () => {
+function stamp() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0");
+}
+
+async function runOrder(order) {
   const btn = $("jv-go"), input = $("jv-order"), jv = document.querySelector(".jarvis");
-  const order = (input.value || "").trim();
+  order = (order || "").trim();
   if (!order) return;
+  orderHistory.unshift(order); historyAt = -1;
   btn.disabled = true; btn.textContent = "Working…"; if (jv) jv.classList.add("busy");
   try {
     const res = await fetch("/command", { method: "POST", cache: "no-store",
       headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order: order }) });
     const { result } = await res.json();
     lastCommand = result || null;
+    if (lastCommand) {
+      transcript.unshift({ status: lastCommand.status, capability: lastCommand.capability, result: lastCommand.result, at: stamp() });
+      transcript = transcript.slice(0, 6);
+      say(lastCommand.result);
+    }
     input.value = "";
     await load();
-  } catch (e) {} finally { btn.disabled = false; btn.textContent = "Execute"; if (jv) jv.classList.remove("busy"); }
-};
-$("jv-order").addEventListener("keydown", (e) => { if (e.key === "Enter") $("jv-go").click(); });
+  } catch (e) {
+    // A dead network is not a completed order. Say so rather than clearing the
+    // box and looking like it worked.
+    transcript.unshift({ status: "failed", capability: "unreachable", result: "Could not reach the Worker — nothing ran.", at: stamp() });
+    renderJarvis(lastAnalytics ? lastAnalytics.command : null, lastAnalytics ? lastAnalytics.integrity : null);
+  } finally { btn.disabled = false; btn.textContent = "Execute"; if (jv) jv.classList.remove("busy"); }
+}
+
+$("jv-go").onclick = () => runOrder($("jv-order").value);
+
+// ↑/↓ walks back through this session's orders. Enter sends.
+let historyAt = -1;
+$("jv-order").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { $("jv-go").click(); return; }
+  if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+  if (orderHistory.length === 0) return;
+  e.preventDefault();
+  historyAt = e.key === "ArrowUp" ? Math.min(historyAt + 1, orderHistory.length - 1) : historyAt - 1;
+  $("jv-order").value = historyAt < 0 ? (historyAt = -1, "") : orderHistory[historyAt];
+});
+
+// ---- Voice ----
+// Both directions use the browser's own speech engine: no service, no audio
+// leaves this page, nothing to configure. Where the browser doesn't provide it
+// (Firefox has no SpeechRecognition), the control says so instead of failing
+// silently — an inert mic button that looks live is worse than no mic button.
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recog = null, listening = false, voiceOn = false;
+
+function say(text) {
+  if (!voiceOn || !text || !window.speechSynthesis) return;
+  try {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(String(text).slice(0, 400));
+    u.rate = 1.02; u.pitch = 1.05;
+    window.speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+const micBtn = $("jv-mic"), voiceBtn = $("jv-voice");
+if (!SR) {
+  micBtn.disabled = true;
+  micBtn.title = "This browser has no speech recognition (try Chrome or Edge). Typing works the same.";
+} else {
+  micBtn.onclick = () => {
+    const jv = document.querySelector(".jarvis"), heard = $("jv-heard");
+    if (listening) { try { recog.stop(); } catch (e) {} return; }
+    recog = new SR();
+    recog.lang = "en-US"; recog.interimResults = true; recog.continuous = false;
+    recog.onstart = () => { listening = true; micBtn.classList.add("listening"); if (jv) jv.classList.add("listening"); heard.textContent = "listening…"; };
+    recog.onresult = (ev) => {
+      let text = "";
+      for (let i = ev.resultIndex; i < ev.results.length; i++) text += ev.results[i][0].transcript;
+      $("jv-order").value = text;
+      heard.textContent = "heard: " + text;
+      // Only act on a final result — acting on a half-heard order is how a
+      // voice interface gets dangerous.
+      if (ev.results[ev.results.length - 1].isFinal && text.trim()) runOrder(text);
+    };
+    recog.onerror = (ev) => { heard.textContent = ev.error === "not-allowed" ? "microphone permission denied" : "voice error: " + ev.error; };
+    recog.onend = () => { listening = false; micBtn.classList.remove("listening"); if (jv) jv.classList.remove("listening"); setTimeout(() => { if (!listening) heard.textContent = ""; }, 3500); };
+    try { recog.start(); } catch (e) { heard.textContent = "could not start the microphone"; }
+  };
+}
+if (!window.speechSynthesis) {
+  voiceBtn.disabled = true;
+  voiceBtn.title = "This browser cannot speak.";
+} else {
+  voiceBtn.onclick = () => {
+    voiceOn = !voiceOn;
+    voiceBtn.classList.toggle("on", voiceOn);
+    voiceBtn.textContent = voiceOn ? "🔊" : "🔈";
+    voiceBtn.title = voiceOn ? "Lumi speaks her replies aloud — click to mute" : "Lumi speaks her replies aloud";
+    if (voiceOn) say("Standing by.");
+    else if (window.speechSynthesis) window.speechSynthesis.cancel();
+  };
+}
 
 // Council: one directive to every model at once. Every model card scans while
 // the votes come in.
@@ -2013,10 +2171,8 @@ $("orch-council").onclick = async () => {
     const { result } = await res.json();
     lastCouncil = result || null;
     renderChamber(lastCouncil);
-  renderJarvis(d.command || null);
-  renderMachine(d.local || null);
     input.value = "";
-    await load();
+    await load(); // load() re-renders the whole cockpit, Jarvis and machine deck included
   } catch (e) {} finally { orchBusy = false; btn.disabled = false; go.disabled = false; btn.textContent = "⚖ Council"; }
 };
 

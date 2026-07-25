@@ -155,6 +155,11 @@ src/engine/            The colony's brains:
   lumi.ts              Skills/XP, quests, awareness, initiative, and lumiPulse
                        (the autonomous heartbeat: trade→learn→audit→sweep→quests)
   integrity.ts         Invest audit checks (ledger reconciliation + 4 more)
+  appintegrity.ts      APP integrity: does the CODE still agree with the DB?
+                       capability triggers that reach their own capability,
+                       Scope union vs the authority ledger, realm keys the
+                       cockpit can render, orphan rows, AETHER conservation,
+                       enabled-but-unused bridges. Every failure names its fix
   guardian.ts          System sweep: databank/ledger/privacy/heartbeat/continuity
   risk.ts              Drawdown/exposure limits + global halt
   knowledge.ts         Expeditions to public sources (HF Hub, CoinGecko)
@@ -181,9 +186,14 @@ src/engine/            The colony's brains:
                        the outgoing key is recorded so the window is closeable
                        on evidence, and Shield nags until it's closed
 src/endpoints/         Reg's API — thin HTTP layer over the engine (see table)
-src/dash/index.ts      Lumi: the self-contained Creator Cockpit — one 1.6k-line
+src/dash/index.ts      Lumi: the self-contained Creator Cockpit — one ~2.2k-line
                        HTML doc, inline SVG charts, /analytics/overview polling,
-                       calm-mode throttling. No CDN, no build step.
+                       calm-mode throttling. No CDN, no build step. The Jarvis
+                       bar takes voice in (SpeechRecognition) and speaks replies
+                       (speechSynthesis) — browser-native, nothing leaves the
+                       page, and a browser without them says so instead of
+                       offering a dead button. ↑/↓ recalls this session's orders;
+                       the integrity chip sits beside the authority grants.
 sui/aether/            Move package for the on-chain AETHER coin (publish.sh)
 agent/                 lumi-agent.mjs — the local agent the creator runs on
                        their own machine; the only piece that can touch a real
@@ -192,10 +202,10 @@ roblox/                InMotion RP kit: server-side Luau (AetherBridge +
                        Paychecks) that pays Roblox city players conserved
                        AETHER through POST /rp/grant (see roblox/README.md)
 scripts/               dev.sh (local) + golive.sh (Cloudflare deploy)
-tests/integration/     19 suites, 136 tests: seed→trade→learn→evolve; audit→
+tests/integration/     20 suites, 145 tests: seed→trade→learn→evolve; audit→
                        sweep→check-in; aether, wallet, defi, shield, growth(x),
                        buildplan, freshness, rp, local, orchestrator, command,
-                       autonomy, authority-posture, ratelimit, rotation
+                       autonomy, authority-posture, ratelimit, rotation, appintegrity
 ```
 
 ## The flow (how the agents hand off to each other)
@@ -245,6 +255,7 @@ Full list is auto-documented at `GET /` (OpenAPI). Grouped by realm/subsystem:
 | **Wallet** | `GET /wallet` `/wallet/:ref` · `POST /wallet` `/wallet/send` `/wallet/link` `/wallet/aether` | In-app web3 wallet; Aether self-mints its own |
 | **DeFi** | `GET /defi` · `POST /defi/pool/{add,remove}` `/defi/swap` `/defi/vault/{deposit,withdraw}` `/defi/{borrow,repay}` | AMM pool, vaults, lending |
 | **Shield** | `GET /shield` · `POST /shield/scan` `/shield/kyc` | Security posture, red-team, privacy-first KYC |
+| **Integrity** | `GET /integrity` · `POST /integrity/scan` | The structural self-check — 9 checks across schema / wiring / referential / value / config, scored 0–100. Catches the failure class nothing else does: code that has drifted from the database and ships green anyway (a shadowed command trigger, a scope that can never be granted, a realm key nothing renders). Every failure carries the remedy, not just the diagnosis. Rides along in `/analytics/overview`, and Lumi can run it herself — "self check". |
 | **Growth** | `GET /growth` `/growth/posts` `/growth/leads` `/growth/deals` `/growth/connectors` `/growth/analytics` · `POST /growth/{post,campaign,lead,scout,connect,deal}` … | Content, campaigns, leads, connectors, deals |
 | **InMotion RP** | `POST /rp/grant` `/rp/spend` · `GET /rp/player/:userId` | Roblox city bridge: players earn (treasury→player) and spend (player→treasury) conserved AETHER; secret-gated via `RP_SHARED_SECRET`, off until set |
 | **Total Command** | `GET /command` · `POST /command` · `PATCH /command/authority` | One bar, all control: a plain-English order routes deterministically to one of **15** registered capabilities across every realm, is checked against the **authority ledger** — 6 scopes, `observe`/`operate` granted by default, `spend`/`publish`/`command`/`machine` revoked until the creator grants them — then runs for real and is logged. Boundary stated in-product: the Worker itself has no filesystem/shell/OS, so it cannot touch the creator's computer; the only path to the machine is the `machine` capability, which queues work for the local agent the creator runs themselves (see Local Agent). |

@@ -29,6 +29,7 @@ import {
 	AetherTransfer,
 } from "./endpoints/aether";
 import { ShieldKyc, ShieldScan, ShieldStatus } from "./endpoints/shield";
+import { IntegrityScan, IntegrityStatus } from "./endpoints/integrity";
 import { AetherWallet, WalletCreate, WalletGet, WalletLink, WalletList, WalletSend } from "./endpoints/wallet";
 import {
 	DefiAddLiquidity,
@@ -202,6 +203,10 @@ openapi.post("/defi/repay", DefiRepay);
 openapi.get("/shield", ShieldStatus);
 openapi.post("/shield/scan", ShieldScan);
 openapi.post("/shield/kyc", ShieldKyc);
+
+// App integrity — structural self-check: does the code still agree with the DB?
+openapi.get("/integrity", IntegrityStatus);
+openapi.post("/integrity/scan", IntegrityScan);
 
 // Growth — PR, content drafting, campaigns, and lead-gen
 openapi.get("/growth", GrowthOverview);

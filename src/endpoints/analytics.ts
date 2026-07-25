@@ -11,6 +11,7 @@ import { curriculumStatus } from "../engine/training";
 import { tokenOverview } from "../engine/token";
 import { suiChainStatus } from "../engine/sui";
 import { shieldOverview } from "../engine/shield";
+import { auditApp } from "../engine/appintegrity";
 import { walletList } from "../engine/wallet";
 import { defiOverview } from "../engine/defi";
 import { growthOverview } from "../engine/growth";
@@ -108,6 +109,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 		const orchestrator = await orchestratorOverview(db, c.env);
 		const command = await commandOverview(db);
 		const local = await localOverview(db, c.env);
+		const integrity = await auditApp(db, c.env);
 		const rp = {
 			citizens: rpCitizens?.n ?? 0,
 			cityBalance: Number((rpCitizens?.bal ?? 0).toFixed(2)),
@@ -171,6 +173,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				orchestrator,
 				command,
 				local,
+				integrity,
 			},
 		};
 	}
