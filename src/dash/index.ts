@@ -423,6 +423,10 @@ export const dashHtml = `<!doctype html>
   #orch-directive { flex: 1; background: none; border: none; color: var(--ink); font-size: 13px; padding: 6px 2px; }
   #orch-directive:focus { outline: none; }
   #orch-go { border-color: var(--series-1); color: var(--series-1); font-weight: 600; }
+  #orch-council { border-color: var(--series-4); color: var(--series-4); font-weight: 600; flex: none; }
+  #orch-council:disabled, #orch-go:disabled { opacity: 0.5; }
+  .orch-task.council { border-left-color: var(--series-4); }
+  .orch-task.council .who { color: var(--series-4); }
   #orch-go:disabled { opacity: 0.5; }
   .orch-log { display: flex; flex-direction: column; gap: 6px; }
   .orch-task { display: flex; gap: 10px; align-items: baseline; font-size: 12px; padding: 6px 10px;
@@ -612,6 +616,7 @@ export const dashHtml = `<!doctype html>
     <span class="orch-target-chip" id="orch-target-chip">lumi</span>
     <input id="orch-directive" type="text" maxlength="2000" placeholder="Directive… (e.g. run a cycle · advise on risk limits)">
     <button id="orch-go">Dispatch</button>
+    <button id="orch-council" title="Put this directive to every model at once">⚖ Council</button>
   </div>
   <div class="orch-log" id="orch-log"></div>
 </div>
@@ -1801,6 +1806,22 @@ $("orch-go").onclick = async () => {
   } catch (e) {} finally { orchBusy = false; btn.disabled = false; btn.textContent = "Dispatch"; }
 };
 $("orch-directive").addEventListener("keydown", (e) => { if (e.key === "Enter") $("orch-go").click(); });
+
+// Council: one directive to every model at once. Every model card scans while
+// the votes come in.
+$("orch-council").onclick = async () => {
+  if (orchBusy) return;
+  const btn = $("orch-council"), go = $("orch-go"), input = $("orch-directive");
+  const directive = (input.value || "status").trim() || "status";
+  orchBusy = true; btn.disabled = true; go.disabled = true; btn.textContent = "Convening…";
+  document.querySelectorAll(".orch-int.model").forEach(el => el.classList.add("working"));
+  try {
+    await fetch("/orchestrator/council", { method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ directive: directive }) });
+    input.value = "";
+    await load();
+  } catch (e) {} finally { orchBusy = false; btn.disabled = false; go.disabled = false; btn.textContent = "⚖ Council"; }
+};
 
 // ---- AETH design preview: swap-preview math + candidate-chain selection ----
 // Pure UI. No money moves — this only mirrors the intended 100:1 credits⇄AETH rate.

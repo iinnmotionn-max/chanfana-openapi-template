@@ -82,6 +82,23 @@ describe("Orchestrator — Lumi commands every agent & model", () => {
 		expect(knowledge.body.result.some((k: any) => k.source === "huggingface")).toBe(false);
 	});
 
+	it("convenes the council: every model asked at once, honest verdict when none linked", async () => {
+		const res = await post("/orchestrator/council", { directive: "how should we size positions?" });
+		expect(res.status).toBe(200);
+		const c = res.body.result;
+		// Both models were asked in parallel; with no keys set, both are offline.
+		expect(c.responses.length).toBeGreaterThanOrEqual(2);
+		expect(c.responses.every((r: any) => r.kind === "model")).toBe(true);
+		expect(c.answered).toBe(0);
+		expect(c.offline).toBeGreaterThanOrEqual(2);
+		// Lumi does not synthesize a verdict from voices that never spoke.
+		expect(c.verdict).toContain("No model answered");
+
+		// The session itself is logged in the command log.
+		const orch = await get("/orchestrator");
+		expect(orch.body.result.tasks.some((t: any) => t.target === "council")).toBe(true);
+	});
+
 	it("rejects an unknown intelligence with 400", async () => {
 		const res = await post("/orchestrator/dispatch", { target: "skynet", directive: "do things" });
 		expect(res.status).toBe(400);

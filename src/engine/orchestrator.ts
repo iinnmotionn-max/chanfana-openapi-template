@@ -258,6 +258,45 @@ export async function dispatch(
 	return out;
 }
 
+// COUNCIL — Lumi puts one directive to every model at once, in parallel, then
+// records the session. Offline models say so; linked ones answer. Lumi's own
+// verdict is a summary of who answered, never a synthesis of absent voices.
+export interface CouncilResult {
+	directive: string;
+	responses: DispatchResult[];
+	answered: number;
+	offline: number;
+	verdict: string;
+}
+
+export async function convene(db: D1Database, env: unknown, directive: string): Promise<CouncilResult> {
+	const models = intelligenceRoster(env).filter((i) => i.kind === "model");
+	const responses = await Promise.all(
+		models.map(async (m) => {
+			const r = await dispatch(db, env, m.name, directive);
+			return "error" in r
+				? { target: m.name, kind: "model" as const, status: "failed" as const, result: r.error }
+				: r;
+		}),
+	);
+	const answered = responses.filter((r) => r.status === "done").length;
+	const offline = responses.filter((r) => r.status === "offline").length;
+	const verdict =
+		answered === 0
+			? `No model answered — ${offline} offline. Link a model (ANTHROPIC_API_KEY / HF_TOKEN) to convene the council.`
+			: `${answered} of ${responses.length} models answered: ${responses
+					.filter((r) => r.status === "done")
+					.map((r) => r.target)
+					.join(", ")}. Counsel banked for comparison.`;
+
+	await db
+		.prepare("INSERT INTO orchestrator_tasks (target, kind, directive, status, result) VALUES ('council', 'model', ?, ?, ?)")
+		.bind(directive, answered > 0 ? "done" : "offline", verdict.slice(0, 2000))
+		.run();
+
+	return { directive, responses, answered, offline, verdict };
+}
+
 export interface OrchestratorOverview {
 	roster: Intelligence[];
 	tasks: { target: string; kind: string; directive: string; status: string; result: string; created_at: string }[];
