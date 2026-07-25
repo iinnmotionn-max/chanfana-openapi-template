@@ -47,11 +47,13 @@ const AGENT_ROSTER: { name: string; role: string; detail: string }[] = [
 ];
 
 export const CLAUDE_MODEL = "claude-opus-4-8";
+export const HF_MODEL = "meta-llama/Llama-3.3-70B-Instruct";
 
-// Everything Lumi commands, with live link status. Claude is 'ready' only when
-// the operator has actually provided the API key.
+// Everything Lumi commands, with live link status. A model is 'ready' only
+// when the operator has actually provided its API key.
 export function intelligenceRoster(env: unknown): Intelligence[] {
 	const claudeLinked = envStr(env, "ANTHROPIC_API_KEY") !== null;
+	const hfLinked = envStr(env, "HF_TOKEN") !== null;
 	return [
 		...AGENT_ROSTER.map((a) => ({ ...a, kind: "agent" as const, status: "ready" as const })),
 		{
@@ -62,6 +64,15 @@ export function intelligenceRoster(env: unknown): Intelligence[] {
 			detail: claudeLinked
 				? `Anthropic API linked · ${CLAUDE_MODEL}`
 				: "not linked — set ANTHROPIC_API_KEY to bring Claude online",
+		},
+		{
+			name: "huggingface",
+			kind: "model",
+			role: "open models",
+			status: hfLinked ? "ready" : "offline",
+			detail: hfLinked
+				? `HF Inference linked · ${HF_MODEL}`
+				: "not linked — set HF_TOKEN to bring open models online",
 		},
 	];
 }
@@ -122,6 +133,53 @@ async function askClaude(db: D1Database, env: unknown, directive: string): Promi
 	}
 }
 
+// Ask an open model through the Hugging Face Inference router (OpenAI-compatible
+// chat endpoint) and bank the answer. Honest adapter: no HF_TOKEN → offline.
+async function askHuggingFace(db: D1Database, env: unknown, directive: string): Promise<DispatchResult> {
+	const token = envStr(env, "HF_TOKEN");
+	if (!token) {
+		return {
+			target: "huggingface",
+			kind: "model",
+			status: "offline",
+			result: "Hugging Face is not linked — set HF_TOKEN (wrangler secret put HF_TOKEN) to bring open models online.",
+		};
+	}
+	try {
+		const res = await fetch("https://router.huggingface.co/v1/chat/completions", {
+			method: "POST",
+			headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+			body: JSON.stringify({
+				model: HF_MODEL,
+				max_tokens: 1024,
+				messages: [
+					{
+						role: "system",
+						content:
+							"You are an open-source model serving as counsel to Lumi, the orchestrator AI of a paper-trading colony. Answer the directive concretely and briefly.",
+					},
+					{ role: "user", content: directive },
+				],
+			}),
+		});
+		if (!res.ok) {
+			return { target: "huggingface", kind: "model", status: "failed", result: `HF Inference error ${res.status}: ${(await res.text()).slice(0, 300)}` };
+		}
+		const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+		const text = (data.choices?.[0]?.message?.content ?? "").trim();
+		if (!text) {
+			return { target: "huggingface", kind: "model", status: "failed", result: "HF Inference returned an empty response" };
+		}
+		await db
+			.prepare("INSERT INTO knowledge (source, kind, title, detail, data) VALUES ('huggingface', 'counsel', ?, ?, ?)")
+			.bind(directive.slice(0, 200), text, JSON.stringify({ model: HF_MODEL }))
+			.run();
+		return { target: "huggingface", kind: "model", status: "done", result: text };
+	} catch (err) {
+		return { target: "huggingface", kind: "model", status: "failed", result: `HF unreachable: ${String(err)}` };
+	}
+}
+
 // Dispatch a directive to one intelligence. Internal agents run their real
 // engine action; 'claude' goes out through the API. Unknown target → error.
 export async function dispatch(
@@ -179,6 +237,10 @@ export async function dispatch(
 		}
 		case "claude": {
 			out = await askClaude(db, env, directive);
+			break;
+		}
+		case "huggingface": {
+			out = await askHuggingFace(db, env, directive);
 			break;
 		}
 		default:

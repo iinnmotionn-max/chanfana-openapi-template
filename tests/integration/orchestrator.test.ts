@@ -30,6 +30,10 @@ describe("Orchestrator — Lumi commands every agent & model", () => {
 		// No ANTHROPIC_API_KEY in the test env → honestly offline, never faked.
 		expect(claude.status).toBe("offline");
 		expect(claude.detail).toContain("ANTHROPIC_API_KEY");
+		const hf = roster.find((i: any) => i.name === "huggingface");
+		expect(hf.kind).toBe("model");
+		expect(hf.status).toBe("offline");
+		expect(hf.detail).toContain("HF_TOKEN");
 	});
 
 	it("dispatching to reg runs a REAL trading cycle and logs the task", async () => {
@@ -69,6 +73,15 @@ describe("Orchestrator — Lumi commands every agent & model", () => {
 		expect(knowledge.body.result.some((k: any) => k.source === "claude")).toBe(false);
 	});
 
+	it("dispatching to Hugging Face without a token reports offline — same honesty", async () => {
+		const res = await post("/orchestrator/dispatch", { target: "huggingface", directive: "advise on strategy" });
+		expect(res.status).toBe(200);
+		expect(res.body.result.status).toBe("offline");
+		expect(res.body.result.result).toContain("HF_TOKEN");
+		const knowledge = await get("/knowledge");
+		expect(knowledge.body.result.some((k: any) => k.source === "huggingface")).toBe(false);
+	});
+
 	it("rejects an unknown intelligence with 400", async () => {
 		const res = await post("/orchestrator/dispatch", { target: "skynet", directive: "do things" });
 		expect(res.status).toBe(400);
@@ -78,7 +91,8 @@ describe("Orchestrator — Lumi commands every agent & model", () => {
 		const res = await get("/analytics/overview");
 		expect(res.status).toBe(200);
 		const o = res.body.result.orchestrator;
-		expect(o.roster.length).toBeGreaterThanOrEqual(8);
+		expect(o.roster.length).toBeGreaterThanOrEqual(9);
+		expect(o.roster.filter((i: any) => i.kind === "model").length).toBeGreaterThanOrEqual(2);
 		expect(o.roster.some((i: any) => i.kind === "model")).toBe(true);
 	});
 });
