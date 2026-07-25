@@ -6,13 +6,14 @@ import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
 import { agentSecret, claimNext, completeTask, localOverview } from "../engine/local";
+import { secretsMatch } from "../engine/secrets";
 
 function gate(c: AppContext, provided: string): Response | null {
 	const secret = agentSecret(c.env);
 	if (!secret) {
 		return c.json({ success: false, errors: [{ code: 5032, message: "Local agent disabled — set LOCAL_AGENT_SECRET" }] }, 503);
 	}
-	if (provided !== secret) {
+	if (!secretsMatch(provided, secret)) {
 		return c.json({ success: false, errors: [{ code: 4012, message: "Bad agent secret" }] }, 401);
 	}
 	return null;

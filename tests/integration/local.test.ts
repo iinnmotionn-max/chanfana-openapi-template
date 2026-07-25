@@ -96,6 +96,13 @@ describe("Local agent — Lumi's hands on the creator's machine", () => {
 		expect((await post("/local/result", { secret: "wrong", id: 1, status: "done" })).status).toBe(401);
 	});
 
+	it("rejects near-miss secrets too — comparison is length-safe and full-byte", async () => {
+		// A prefix, a suffix, and a same-length near miss all fail identically.
+		for (const bad of ["test-agent-secre", "test-agent-secret2", "test-agent-secreX"]) {
+			expect((await post("/local/next", { secret: bad })).status, bad).toBe(401);
+		}
+	});
+
 	it("400s when reporting on a task that doesn't exist", async () => {
 		const res = await post("/local/result", { secret: SECRET, id: 999999, status: "done", result: "x" });
 		expect(res.status).toBe(400);

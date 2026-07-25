@@ -34,6 +34,13 @@ import { hostname } from "node:os";
 import { resolve } from "node:path";
 
 // ---- Allowlist: the only executables this agent will run. ----
+//
+// Read this before widening it. An allowlist of program NAMES is only as
+// strong as the programs on it: several here are interpreters or task
+// runners, and `node -e`, `python -c`, or `npm run <script>` execute
+// arbitrary code while still being "on the list". The EVAL_FLAGS and
+// RUNNER_SUBCOMMANDS guards below close that door; if you add a program that
+// can evaluate a string or run a user-defined script, add its flag here too.
 const ALLOW = new Set([
 	"git",
 	"npm",
@@ -51,6 +58,14 @@ const ALLOW = new Set([
 	"python",
 	"python3",
 ]);
+
+// Flags that turn an interpreter into "run this arbitrary string".
+const EVAL_FLAGS = new Set(["-e", "--eval", "-c", "--command", "-p", "--print", "-i", "--interactive"]);
+
+// Task runners execute whatever the local project defines. `npm test` is not
+// meaningfully safer than `npm run anything` — both run project-authored code.
+const RUNNERS = new Set(["npm", "npx", "yarn", "pnpm"]);
+const RUNNER_SUBCOMMANDS = new Set(["run", "run-script", "exec", "test", "start", "publish", "install", "i", "ci", "add"]);
 
 // Shell metacharacters that could chain or redirect. Present → refuse.
 const FORBIDDEN = /[;&|`$><\n\r]|\$\(|&&|\|\|/;
@@ -120,9 +135,31 @@ async function handle(task) {
 
 	const parts = task.task.trim().split(/\s+/);
 	const cmd = parts[0];
+	const rest = parts.slice(1);
+
 	if (!ALLOW.has(cmd)) {
 		console.log(`  \x1b[31mrefused\x1b[0m — "${cmd}" is not on this agent's allowlist`);
 		return { status: "refused", result: `Refused: "${cmd}" is not on the allowlist. Allowed: ${[...ALLOW].join(", ")}.` };
+	}
+
+	// An allowlisted interpreter asked to evaluate a string is arbitrary code
+	// execution wearing an approved name. Refuse the flag, not just the program.
+	const evalFlag = rest.find((a) => EVAL_FLAGS.has(a));
+	if (evalFlag) {
+		console.log(`  \x1b[31mrefused\x1b[0m — "${cmd} ${evalFlag}" evaluates arbitrary code`);
+		return {
+			status: "refused",
+			result: `Refused: "${cmd} ${evalFlag}" evaluates an arbitrary string, which defeats the allowlist. Put the code in a file and run the file.`,
+		};
+	}
+
+	// Task runners execute whatever the local project defines.
+	if (RUNNERS.has(cmd) && rest.length > 0 && RUNNER_SUBCOMMANDS.has(rest[0])) {
+		console.log(`  \x1b[31mrefused\x1b[0m — "${cmd} ${rest[0]}" runs project-defined scripts`);
+		return {
+			status: "refused",
+			result: `Refused: "${cmd} ${rest[0]}" executes project-defined scripts, which the allowlist cannot vet. Run the underlying command directly.`,
+		};
 	}
 
 	if (!AUTO_YES) {

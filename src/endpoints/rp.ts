@@ -12,6 +12,7 @@ import { z } from "zod";
 import { AppContext } from "../types";
 import { reward, spend } from "../engine/token";
 import { newAddress, walletOverview } from "../engine/wallet";
+import { secretsMatch } from "../engine/secrets";
 
 function configuredSecret(env: unknown): string {
 	const v = (env as Record<string, unknown> | null | undefined)?.RP_SHARED_SECRET;
@@ -83,7 +84,7 @@ export class RpGrant extends OpenAPIRoute {
 		if (!secret) {
 			return c.json({ success: false, errors: [{ code: 5031, message: "RP bridge disabled — set RP_SHARED_SECRET" }] }, 503);
 		}
-		if (body.secret !== secret) {
+		if (!secretsMatch(body.secret, secret)) {
 			return c.json({ success: false, errors: [{ code: 4011, message: "Bad shared secret" }] }, 401);
 		}
 
@@ -134,7 +135,7 @@ export class RpSpend extends OpenAPIRoute {
 		if (!secret) {
 			return c.json({ success: false, errors: [{ code: 5031, message: "RP bridge disabled — set RP_SHARED_SECRET" }] }, 503);
 		}
-		if (body.secret !== secret) {
+		if (!secretsMatch(body.secret, secret)) {
 			return c.json({ success: false, errors: [{ code: 4011, message: "Bad shared secret" }] }, 401);
 		}
 

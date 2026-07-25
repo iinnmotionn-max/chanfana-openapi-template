@@ -48,12 +48,26 @@ comes back into the cockpit.
 | Rule | Why |
 |---|---|
 | **Allowlist only** — `git`, `npm`, `npx`, `node`, `ls`, `cat`, `echo`, `pwd`, `date`, `wrangler`, `python`… | Anything else is refused and reported as refused. Edit `ALLOW` in the script to widen it. |
+| **No eval flags** — `node -e`, `python -c`, `--eval`, `-p`, `-i` are refused | An allowlist of program *names* is only as strong as the programs on it. `node -e "…"` is arbitrary code execution wearing an approved name, so the flag is refused, not just the program. |
+| **No task runners** — `npm run`, `npm install`, `npx exec`, `yarn test`… are refused | They execute whatever the local project defines, which an allowlist cannot vet. Run the underlying command directly. |
 | **No shell** — commands are spawned directly | `;` `&&` `\|` backticks and redirection can't chain a second command. A task containing them is refused outright. |
 | **Confirmation on every task** | You see it before it runs. `--yes` skips the prompt — only use it when you trust the queue. |
 | **Sandboxed to `--workdir`** | Commands run there, not wherever the agent was launched from. |
 | **60s timeout, 4000-char output cap** | A runaway task can't hang or flood the log. |
 
 ## Straight talk
+
+**The allowlist is a speed bump, not a sandbox.** A security review of this
+agent found that `node -e`, `python -c`, and `npm run` sailed straight through
+the original allowlist — arbitrary code execution under an approved program
+name. Those are closed now, but the lesson generalizes: any program that can
+evaluate a string or run a project-defined script defeats a name-based
+allowlist. **If you widen `ALLOW`, check whether the program you're adding can
+do that**, and add its eval flag to `EVAL_FLAGS` if so.
+
+The real boundary is the **confirmation prompt** — a human reading each command
+before it runs. `--yes` removes it. Treat that flag as "I trust every task that
+will ever land in this queue."
 
 This is remote execution on your own machine, and no set of rules makes that
 risk-free. Run it on a machine you're willing to have act on these commands, in
