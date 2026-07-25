@@ -7,6 +7,7 @@ import { z } from "zod";
 import { AppContext } from "../types";
 import { agentSecret, claimNext, completeTask, localOverview } from "../engine/local";
 import { isConfigured, matchSecret, noteLegacyUse } from "../engine/rotation";
+import { noteCaller } from "../engine/callers";
 import { clearFailures, consume, LIMITS } from "../engine/ratelimit";
 
 // Auth failures are rate-limited into a lockout; call volume is capped
@@ -32,6 +33,9 @@ async function gate(c: AppContext, provided: string, host = ""): Promise<Respons
 		// rotation window is visible and can actually be closed.
 		await noteLegacyUse(c.env.DB, "local agent", host);
 	}
+	// Learn who this is. A machine we've never seen using a valid secret is
+	// worth one question — Shield asks it.
+	await noteCaller(c.env.DB, "local agent", host);
 	// Correct secret — forgive earlier fumbles, then cap call volume.
 	await clearFailures(c.env.DB, "auth:local");
 	const called = await consume(c.env.DB, "call:local", LIMITS.local.limit, LIMITS.local.window);

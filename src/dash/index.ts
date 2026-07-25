@@ -526,6 +526,17 @@ export const dashHtml = `<!doctype html>
   .jv-integ.broken { border-color: var(--critical); color: var(--critical); font-weight: 700;
     animation: jv-alarm 1.8s ease-in-out infinite; }
   @keyframes jv-alarm { 0%,100% { box-shadow: 0 0 0 0 rgba(197,48,48,0); } 50% { box-shadow: 0 0 12px 0 rgba(197,48,48,0.45); } }
+  /* Bridge callers — who has walked through the inbound doors. */
+  .callers { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .callers:empty { display: none; }
+  .callers .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
+  .caller { font-size: 10.5px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px;
+    color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
+  .caller .b { color: var(--muted); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .caller.stranger { border-color: var(--warning); color: var(--warning); }
+  .caller.stranger .trust { cursor: pointer; border: 1px solid var(--warning); border-radius: 5px;
+    padding: 0 5px; font-size: 9.5px; letter-spacing: 0.4px; }
+  .caller.stranger .trust:hover { background: var(--warning); color: var(--page); }
   .integ-breaks { margin-top: 10px; }
   .integ-break { font-size: 11.5px; border-left: 2px solid var(--critical); padding: 6px 10px;
     background: var(--page); border-radius: 0 7px 7px 0; margin-top: 5px; }
@@ -749,6 +760,7 @@ export const dashHtml = `<!doctype html>
     </div>
     <div class="jv-heard" id="jv-heard"></div>
     <div class="jv-grants" id="jv-grants"></div>
+    <div class="callers" id="jv-callers"></div>
     <div class="integ-breaks" id="jv-integ-breaks"></div>
     <div class="jv-out" id="jv-out"></div>
     <div class="jv-boundary" id="jv-boundary"></div>
@@ -995,7 +1007,7 @@ function render(d) {
   renderRp(d.rp || null);
   renderOrchestrator(d.orchestrator || null);
   renderChamber(lastCouncil);
-  renderJarvis(d.command || null, d.integrity || null);
+  renderJarvis(d.command || null, d.integrity || null, d.bridgeCallers || []);
   renderMachine(d.local || null);
   firstPaint = false;
 }
@@ -1054,7 +1066,7 @@ function renderMachine(m) {
 let lastCommand = null;
 let transcript = [];   // every order this session, newest first
 let orderHistory = []; // for ↑/↓ recall in the input
-function renderJarvis(cmd, integrity) {
+function renderJarvis(cmd, integrity, callers) {
   const g = $("jv-grants"), b = $("jv-boundary"), o = $("jv-out");
   if (!g) return;
   if (cmd) {
@@ -1089,6 +1101,28 @@ function renderJarvis(cmd, integrity) {
     };
     if (b) b.textContent = cmd.boundary || "";
   }
+  // Who has been through the inbound doors. A caller nobody has vouched for is
+  // amber with a one-click answer — the question should be cheap to close.
+  const cl = $("jv-callers");
+  if (cl) {
+    const list = callers || [];
+    cl.innerHTML = list.length === 0 ? "" : '<span class="lbl">Bridge callers</span>' + list.map(c =>
+      '<span class="caller ' + (c.trusted ? "" : "stranger") + '">' +
+      '<span class="b">' + esc(c.bridge) + '</span>' + esc(c.caller) +
+      ' <span style="opacity:.6">×' + esc(String(c.calls)) + '</span>' +
+      (c.trusted ? "" : '<span class="trust" data-b="' + esc(c.bridge) + '" data-c="' + esc(c.caller) + '">MINE</span>') +
+      '</span>'
+    ).join("");
+    cl.querySelectorAll(".trust").forEach(el => {
+      el.onclick = async () => {
+        await fetch("/bridges/trust", { method: "POST", cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bridge: el.dataset.b, caller: el.dataset.c, trusted: true }) });
+        await load();
+      };
+    });
+  }
+
   // A failing check is useless without the remedy, so both are shown.
   const bl = $("jv-integ-breaks");
   if (bl) {
@@ -2083,7 +2117,7 @@ async function runOrder(order) {
     // A dead network is not a completed order. Say so rather than clearing the
     // box and looking like it worked.
     transcript.unshift({ status: "failed", capability: "unreachable", result: "Could not reach the Worker — nothing ran.", at: stamp() });
-    renderJarvis(lastAnalytics ? lastAnalytics.command : null, lastAnalytics ? lastAnalytics.integrity : null);
+    renderJarvis(lastAnalytics ? lastAnalytics.command : null, lastAnalytics ? lastAnalytics.integrity : null, lastAnalytics ? lastAnalytics.bridgeCallers : []);
   } finally { btn.disabled = false; btn.textContent = "Execute"; if (jv) jv.classList.remove("busy"); }
 }
 

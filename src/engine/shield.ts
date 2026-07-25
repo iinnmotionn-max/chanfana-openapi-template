@@ -6,6 +6,7 @@
 import { auditInvest } from "./integrity";
 import { limitStatus } from "./ratelimit";
 import { rotationStatus } from "./rotation";
+import { unknownCallers } from "./callers";
 import { auditSupply } from "./token";
 import { suiChainStatus } from "./sui";
 import { recordMetric } from "./lumi";
@@ -50,8 +51,9 @@ export const RULES = [
 	{ id: "authority-unattended-action", dimension: "authority", weight: 1 },
 	{ id: "authority-bridge-exposure", dimension: "authority", weight: 1 },
 	{ id: "authority-rotation-window", dimension: "authority", weight: 1 },
+	{ id: "authority-caller-identity", dimension: "authority", weight: 1 },
 ] as const;
-export const RULESET_VERSION = 5; // bump when rules change — the ruleset "learns"
+export const RULESET_VERSION = 6; // bump when rules change — the ruleset "learns"
 
 const DIM_WEIGHTS: Record<Dimension, number> = { contract: 0.18, custody: 0.18, privacy: 0.18, decentralization: 0.14, redteam: 0.18, authority: 0.14 };
 
@@ -166,6 +168,23 @@ export async function assessPosture(db: D1Database, env: unknown): Promise<Postu
 			severity: r.legacyCalls > 0 ? "info" : "warn",
 			title: `Rotation open on the ${r.bridge} bridge`,
 			detail: r.advice,
+		});
+	}
+
+	// A caller nobody has vouched for. Rate limiting catches guessing and
+	// rotation replaces a leak, but a COPIED secret produces traffic that looks
+	// exactly like yours — except it comes from a machine you've never seen.
+	// This is a question, not an accusation: trust it and it stops asking.
+	const strangers = await unknownCallers(db);
+	if (strangers.length > 0) {
+		authScore -= 0.05 * Math.min(3, strangers.length);
+		authFindings.push({
+			severity: "warn",
+			title: `${strangers.length} unrecognized caller${strangers.length > 1 ? "s" : ""} on your bridges`,
+			detail:
+				`${strangers.map((s) => `${s.caller} → ${s.bridge} (${s.calls} call${s.calls > 1 ? "s" : ""}, first seen ${s.firstSeen})`).join("; ")}. ` +
+				"If that's yours, trust it (POST /bridges/trust) and this clears. If it isn't, rotate that bridge's secret now. " +
+				"Note: caller names are self-reported, so this can be spoofed by someone holding the secret — it is a prompt to look, not proof either way.",
 		});
 	}
 

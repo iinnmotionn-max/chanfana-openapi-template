@@ -181,6 +181,8 @@ src/engine/            The colony's brains:
   local.ts           The machine-bridge queue (local_tasks): queue → claim → result
   secrets.ts         Constant-time secret comparison (no timing oracle)
   ratelimit.ts       Failure lockouts + call caps per bridge; Shield reads it
+  callers.ts         Who walks through each inbound bridge; an unfamiliar
+                       caller is surfaced once and answered by trusting it
   rotation.ts        Two-secret overlap window (KEY / KEY_PREVIOUS) so a bridge
                        secret can be changed with zero downtime; every call on
                        the outgoing key is recorded so the window is closeable
@@ -202,10 +204,10 @@ roblox/                InMotion RP kit: server-side Luau (AetherBridge +
                        Paychecks) that pays Roblox city players conserved
                        AETHER through POST /rp/grant (see roblox/README.md)
 scripts/               dev.sh (local) + golive.sh (Cloudflare deploy)
-tests/integration/     20 suites, 148 tests: seed→trade→learn→evolve; audit→
+tests/integration/     21 suites, 157 tests: seed→trade→learn→evolve; audit→
                        sweep→check-in; aether, wallet, defi, shield, growth(x),
                        buildplan, freshness, rp, local, orchestrator, command,
-                       autonomy, authority-posture, ratelimit, rotation, appintegrity
+                       autonomy, authority-posture, ratelimit, rotation, appintegrity, callers
 ```
 
 ## The flow (how the agents hand off to each other)
@@ -260,7 +262,7 @@ Full list is auto-documented at `GET /` (OpenAPI). Grouped by realm/subsystem:
 | **InMotion RP** | `POST /rp/grant` `/rp/spend` · `GET /rp/player/:userId` | Roblox city bridge: players earn (treasury→player) and spend (player→treasury) conserved AETHER; secret-gated via `RP_SHARED_SECRET`, off until set |
 | **Total Command** | `GET /command` · `POST /command` · `PATCH /command/authority` | One bar, all control: a plain-English order routes deterministically to one of **15** registered capabilities across every realm, is checked against the **authority ledger** — 6 scopes, `observe`/`operate` granted by default, `spend`/`publish`/`command`/`machine` revoked until the creator grants them — then runs for real and is logged. Boundary stated in-product: the Worker itself has no filesystem/shell/OS, so it cannot touch the creator's computer; the only path to the machine is the `machine` capability, which queues work for the local agent the creator runs themselves (see Local Agent). |
 | **Local Agent** | `GET /local` · `POST /local/next` `/local/result` | Lumi's hands on the creator's machine. She queues a task (needs the `machine` grant); `agent/lumi-agent.mjs`, run by the creator on their own computer, claims it and decides whether to run it — allowlist, no shell, per-task confirmation, sandboxed workdir. The Worker never executes anything; the machine always holds the veto. Secret-gated with `LOCAL_AGENT_SECRET`. |
-| **Bridge hardening** | applies to `/rp/*` and `/local/*` | Both inbound bridges share one gate: constant-time secret comparison (`secrets.ts`), a failure lockout that refuses even the *correct* secret while it holds plus a per-bridge call cap (`ratelimit.ts`), and a **rotation window** (`rotation.ts`) — each bridge accepts `KEY` **and** `KEY_PREVIOUS`, so a compromised secret can be replaced with zero downtime. Calls that arrive on the outgoing key are recorded with their caller, and Shield's Authority dimension reports whether the window can be closed yet; leaving it open costs posture score. |
+| **Bridge hardening** | applies to `/rp/*` and `/local/*` · `GET /bridges` · `POST /bridges/trust` | Both inbound bridges share one gate, covering the three ways a shared secret goes wrong. **Guessed** → constant-time comparison (`secrets.ts`) plus a failure lockout that refuses even the *correct* secret while it holds, and a per-bridge call cap (`ratelimit.ts`). **Leaked** → a rotation window (`rotation.ts`): each bridge accepts `KEY` **and** `KEY_PREVIOUS`, so a compromised secret is replaced with zero downtime, and every call on the outgoing key is recorded so the window can be closed on evidence. **Copied** → caller identity (`callers.ts`): every authenticated call records who made it, the first caller on a bridge becomes the baseline, and the next unfamiliar one raises a question Shield asks once and you answer by trusting it. All three cost posture score while open. **Stated limit:** caller names are self-reported, so a thief holding the secret can claim a name you trust — it raises the cost of quiet misuse, it is not a second factor. |
 | **Orchestrator** | `GET /orchestrator` · `POST /orchestrator/dispatch` `/orchestrator/council` | Lumi commands every intelligence: internal agents run their REAL engine actions (reg→cycle, observer→learn, guardian→sweep, aether→study, shield→scan, growth→scout, lumi→pulse); Claude links via the Anthropic API (`ANTHROPIC_API_KEY`) and open models via Hugging Face Inference (`HF_TOKEN`) — each honestly offline until its key is set; counsel is banked into `knowledge`. Every dispatch logged in `orchestrator_tasks`. **Council** puts one directive to every model at once (parallel) and records who answered — never synthesizing a verdict from voices that didn't speak. |
 | **Aura** | `GET /auras` `/auras/:id/brief` · `POST /auras` | Consent-gated profiles + personalization briefs |
 | **Records / cockpit** | `GET /reports` · `GET /goals` `POST/PATCH` · `GET /analytics/overview` · `GET /dash` · `GET /` | Feed, goals, one-call cockpit payload, dashboard, OpenAPI |

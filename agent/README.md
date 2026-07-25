@@ -80,6 +80,20 @@ delete"*. You close the window on evidence, not on hope. And while it stays
 open, it costs posture score: an overlap window is two valid secrets, and a
 rotation you forgot to finish is a rotation you didn't do.
 
+## Who the Worker thinks you are
+
+The agent sends `--host` (default: your machine's hostname) with every poll,
+and the Worker records it. The first machine to connect becomes the baseline;
+if a *different* name later shows up using a valid secret, Shield raises it
+once on the security panel and the cockpit shows it in amber with a **MINE**
+button. Click it and the question is closed for good.
+
+That is worth having — a copied secret otherwise produces traffic identical
+to yours — but be clear about what it is: **the host name is self-reported.**
+Anyone holding your secret can send `--host studio-pc` and look like your
+machine. This helps you notice a stranger who isn't hiding; it stops nobody
+who is. The secret is still the only thing guarding the door.
+
 ## Straight talk
 
 **The allowlist is a speed bump, not a sandbox.** A security review of this

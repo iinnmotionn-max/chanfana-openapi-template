@@ -30,6 +30,7 @@ import {
 } from "./endpoints/aether";
 import { ShieldKyc, ShieldScan, ShieldStatus } from "./endpoints/shield";
 import { IntegrityScan, IntegrityStatus } from "./endpoints/integrity";
+import { BridgeCallers, BridgeTrust } from "./endpoints/bridges";
 import { watchIntegrity } from "./engine/appintegrity";
 import { AetherWallet, WalletCreate, WalletGet, WalletLink, WalletList, WalletSend } from "./endpoints/wallet";
 import {
@@ -208,6 +209,10 @@ openapi.post("/shield/kyc", ShieldKyc);
 // App integrity — structural self-check: does the code still agree with the DB?
 openapi.get("/integrity", IntegrityStatus);
 openapi.post("/integrity/scan", IntegrityScan);
+
+// Bridge callers — who walks through the inbound doors, and who you vouch for
+openapi.get("/bridges", BridgeCallers);
+openapi.post("/bridges/trust", BridgeTrust);
 
 // Growth — PR, content drafting, campaigns, and lead-gen
 openapi.get("/growth", GrowthOverview);

@@ -13,6 +13,7 @@ import { AppContext } from "../types";
 import { reward, spend } from "../engine/token";
 import { newAddress, walletOverview } from "../engine/wallet";
 import { isConfigured, matchSecret, noteLegacyUse } from "../engine/rotation";
+import { noteCaller } from "../engine/callers";
 import { clearFailures, consume, LIMITS } from "../engine/ratelimit";
 
 // Same two-tier gate as the local agent: failed secrets lock the door,
@@ -37,6 +38,7 @@ async function rpGate(c: AppContext, provided: string, who = ""): Promise<Respon
 	if (age === "previous") {
 		await noteLegacyUse(c.env.DB, "roblox city", who);
 	}
+	await noteCaller(c.env.DB, "roblox city", who);
 	await clearFailures(c.env.DB, "auth:rp");
 	const called = await consume(c.env.DB, "call:rp", LIMITS.rp.limit, LIMITS.rp.window);
 	if (!called.ok) {
