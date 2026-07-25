@@ -428,6 +428,32 @@ export const dashHtml = `<!doctype html>
   .orch-task.council { border-left-color: var(--series-4); }
   .orch-task.council .who { color: var(--series-4); }
   #orch-go:disabled { opacity: 0.5; }
+  /* Council chamber — side-by-side comparison of what each model said */
+  .orch-chamber { margin-bottom: 12px; }
+  .orch-chamber:empty { display: none; }
+  .oc-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; animation: risein 0.4s ease-out both; }
+  .oc-head .t { font-size: 11px; text-transform: uppercase; letter-spacing: 0.9px; color: var(--series-4); font-weight: 700; }
+  .oc-head .q { font-size: 12px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .oc-head .x { margin-left: auto; cursor: pointer; color: var(--muted); font-size: 15px; line-height: 1; flex: none; }
+  .oc-head .x:hover { color: var(--ink); }
+  .oc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-bottom: 9px; }
+  .oc-voice { background: var(--page); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+    animation: risein 0.45s ease-out both; }
+  .oc-voice:nth-child(2) { animation-delay: 0.09s; }
+  .oc-voice:nth-child(3) { animation-delay: 0.18s; }
+  .oc-voice.done { border-color: rgba(144,133,233,0.5); }
+  .oc-voice .vh { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; }
+  .oc-voice .vn { font-weight: 700; font-size: 13px; }
+  .oc-voice .vs { margin-left: auto; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px;
+    border: 1px solid var(--good); color: var(--good); border-radius: 999px; padding: 1px 8px; }
+  .oc-voice.offline .vs { border-color: var(--muted); color: var(--muted); }
+  .oc-voice.failed .vs { border-color: var(--critical); color: var(--critical); }
+  .oc-voice .vt { font-size: 12px; color: var(--ink-2); line-height: 1.55; white-space: pre-wrap;
+    max-height: 260px; overflow-y: auto; }
+  .oc-voice.offline .vt, .oc-voice.failed .vt { color: var(--muted); }
+  .oc-verdict { font-size: 12px; color: var(--ink-2); background: var(--page); border-left: 2px solid var(--series-4);
+    border-radius: 6px; padding: 8px 12px; animation: risein 0.5s ease-out 0.24s both; }
+  .oc-verdict b { color: var(--series-4); }
   .orch-log { display: flex; flex-direction: column; gap: 6px; }
   .orch-task { display: flex; gap: 10px; align-items: baseline; font-size: 12px; padding: 6px 10px;
     background: var(--page); border-left: 2px solid var(--series-1); border-radius: 6px; animation: slidein 0.35s ease-out both; }
@@ -618,6 +644,7 @@ export const dashHtml = `<!doctype html>
     <button id="orch-go">Dispatch</button>
     <button id="orch-council" title="Put this directive to every model at once">⚖ Council</button>
   </div>
+  <div class="orch-chamber" id="orch-chamber"></div>
   <div class="orch-log" id="orch-log"></div>
 </div>
 
@@ -846,6 +873,7 @@ function render(d) {
   renderGrowth(d.growth || null);
   renderRp(d.rp || null);
   renderOrchestrator(d.orchestrator || null);
+  renderChamber(lastCouncil);
   firstPaint = false;
 }
 
@@ -878,6 +906,27 @@ function renderOrchestrator(o) {
     ).join("") || '<div class="empty">No dispatches yet — pick an intelligence and give the order.</div>';
   }
 }
+
+// The council chamber: every model's answer side by side, so counsel can be
+// weighed. Rendered from the live council response, not from the task log.
+function renderChamber(c) {
+  const el = $("orch-chamber");
+  if (!el) return;
+  if (!c) { el.innerHTML = ""; return; }
+  const voices = (c.responses || []).map(r =>
+    '<div class="oc-voice ' + esc(r.status) + '"><div class="vh"><span class="vn">' + esc(r.target) + '</span>' +
+    '<span class="vs">' + esc(r.status) + '</span></div>' +
+    '<div class="vt">' + esc(r.result) + '</div></div>'
+  ).join("");
+  el.innerHTML =
+    '<div class="oc-head"><span class="t">⚖ Council</span><span class="q">' + esc(c.directive) + '</span>' +
+    '<span class="x" id="oc-close" title="Dismiss">✕</span></div>' +
+    '<div class="oc-grid">' + voices + '</div>' +
+    '<div class="oc-verdict"><b>Verdict:</b> ' + esc(c.verdict) + '</div>';
+  const x = $("oc-close");
+  if (x) x.onclick = () => { lastCouncil = null; renderChamber(null); };
+}
+let lastCouncil = null;
 
 function renderRp(rp) {
   const el = $("rp-panel");
@@ -1816,8 +1865,11 @@ $("orch-council").onclick = async () => {
   orchBusy = true; btn.disabled = true; go.disabled = true; btn.textContent = "Convening…";
   document.querySelectorAll(".orch-int.model").forEach(el => el.classList.add("working"));
   try {
-    await fetch("/orchestrator/council", { method: "POST", cache: "no-store",
+    const res = await fetch("/orchestrator/council", { method: "POST", cache: "no-store",
       headers: { "Content-Type": "application/json" }, body: JSON.stringify({ directive: directive }) });
+    const { result } = await res.json();
+    lastCouncil = result || null;
+    renderChamber(lastCouncil);
     input.value = "";
     await load();
   } catch (e) {} finally { orchBusy = false; btn.disabled = false; go.disabled = false; btn.textContent = "⚖ Council"; }
