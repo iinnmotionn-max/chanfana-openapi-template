@@ -1275,7 +1275,7 @@ function renderWallet(wallets) {
   };
 }
 
-const DIM_COLOR = { contract: "var(--series-1)", custody: "var(--series-2)", privacy: "var(--series-3)", decentralization: "var(--series-4)", redteam: "var(--critical)" };
+const DIM_COLOR = { contract: "var(--series-1)", custody: "var(--series-2)", privacy: "var(--series-3)", decentralization: "var(--series-4)", redteam: "var(--critical)", authority: "var(--warning)" };
 function scoreColor(s) { return s >= 90 ? "var(--good)" : s >= 70 ? "var(--series-1)" : s >= 55 ? "var(--warning)" : "var(--critical)"; }
 
 function renderShield(s) {

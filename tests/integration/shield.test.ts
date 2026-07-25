@@ -15,7 +15,7 @@ async function get(path: string) {
 }
 
 describe("Shield — web3 security, red-team, decentralization, KYC", () => {
-	it("scores a composite security posture across five dimensions", async () => {
+	it("scores a composite security posture across six dimensions", async () => {
 		const s = await get("/shield");
 		expect(s.status).toBe(200);
 		const p = s.body.result.posture;
@@ -23,7 +23,7 @@ describe("Shield — web3 security, red-team, decentralization, KYC", () => {
 		expect(p.score).toBeLessThanOrEqual(100);
 		expect(["A", "B", "C", "D", "F"]).toContain(p.grade);
 		expect(p.dimensions.map((d: any) => d.dimension).sort()).toEqual(
-			["contract", "custody", "decentralization", "privacy", "redteam"],
+			["authority", "contract", "custody", "decentralization", "privacy", "redteam"],
 		);
 		expect(p.rulesetVersion).toBeGreaterThanOrEqual(1);
 		expect(p.ruleCount).toBeGreaterThan(5);
@@ -81,6 +81,6 @@ describe("Shield — web3 security, red-team, decentralization, KYC", () => {
 	it("analytics overview carries the shield posture", async () => {
 		const overview = await get("/analytics/overview");
 		expect(overview.body.result.shield).toBeTruthy();
-		expect(overview.body.result.shield.posture.dimensions.length).toBe(5);
+		expect(overview.body.result.shield.posture.dimensions.length).toBe(6);
 	});
 });

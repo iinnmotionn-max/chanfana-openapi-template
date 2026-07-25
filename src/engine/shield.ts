@@ -8,7 +8,7 @@ import { auditSupply } from "./token";
 import { suiChainStatus } from "./sui";
 import { recordMetric } from "./lumi";
 
-export type Dimension = "contract" | "custody" | "privacy" | "decentralization" | "redteam";
+export type Dimension = "contract" | "custody" | "privacy" | "decentralization" | "redteam" | "authority";
 
 export interface DimensionScore {
 	dimension: Dimension;
@@ -43,10 +43,14 @@ export const RULES = [
 	{ id: "redteam-ledger-integrity", dimension: "redteam", weight: 1 },
 	{ id: "redteam-token-supply", dimension: "redteam", weight: 1 },
 	{ id: "redteam-no-negative-balances", dimension: "redteam", weight: 1 },
+	{ id: "authority-least-privilege", dimension: "authority", weight: 1 },
+	{ id: "authority-machine-reach", dimension: "authority", weight: 1 },
+	{ id: "authority-unattended-action", dimension: "authority", weight: 1 },
+	{ id: "authority-bridge-exposure", dimension: "authority", weight: 1 },
 ] as const;
-export const RULESET_VERSION = 3; // bump when rules change — the ruleset "learns"
+export const RULESET_VERSION = 4; // bump when rules change — the ruleset "learns"
 
-const DIM_WEIGHTS: Record<Dimension, number> = { contract: 0.2, custody: 0.2, privacy: 0.2, decentralization: 0.2, redteam: 0.2 };
+const DIM_WEIGHTS: Record<Dimension, number> = { contract: 0.18, custody: 0.18, privacy: 0.18, decentralization: 0.14, redteam: 0.18, authority: 0.14 };
 
 function grade(score: number): string {
 	if (score >= 90) return "A";
@@ -107,12 +111,60 @@ export async function assessPosture(db: D1Database, env: unknown): Promise<Postu
 	if (negative > 0) { redScore -= 0.33; redFindings.push({ severity: "critical", title: "Negative balances", detail: `${negative} account(s) below zero.` }); }
 	redScore = Math.max(0, redScore);
 
+	// --- Authority (blast radius) ---
+	// Every scope the creator grants widens what a compromised command bar, a
+	// prompt injection, or a stolen bridge secret could reach. Shield does not
+	// tell anyone what to grant — it makes the cost of each grant visible, so a
+	// posture score reflects the powers actually handed over, not just the code.
+	const authFindings: DimensionScore["findings"] = [];
+	const scopes = (await db.prepare("SELECT scope, granted FROM authority").all<{ scope: string; granted: number }>()).results;
+	const on = (k: string) => scopes.find((x) => x.scope === k)?.granted === 1;
+	let authScore = 1;
+	if (on("machine")) {
+		authScore -= 0.3;
+		authFindings.push({
+			severity: "warn",
+			title: "Machine reach granted",
+			detail: "Lumi can queue commands for your computer. The local agent still vets each one (allowlist, no eval flags, your confirmation) — but this is the widest grant available.",
+		});
+	}
+	if (on("spend")) {
+		authScore -= 0.2;
+		authFindings.push({ severity: "warn", title: "Spend granted", detail: "Value can move on command. Supply stays conserved, but funds can be reallocated without a second approval." });
+	}
+	if (on("command")) {
+		authScore -= 0.2;
+		authFindings.push({ severity: "warn", title: "Unattended action granted", detail: "Lumi takes one corrective action per pulse with nobody watching. Every act is chronicled in the feed." });
+	}
+	if (on("publish")) {
+		authScore -= 0.1;
+		authFindings.push({ severity: "info", title: "Publish granted", detail: "Content can leave the system through live connectors." });
+	}
+	// Bridges are attack surface whenever their secret is set, granted or not.
+	const bridges = [
+		["LOCAL_AGENT_SECRET", "local agent"],
+		["RP_SHARED_SECRET", "Roblox city"],
+	].filter(([k]) => typeof (env as Record<string, unknown> | null)?.[k] === "string" && String((env as Record<string, unknown>)[k]).length > 0);
+	if (bridges.length > 0) {
+		authScore -= 0.1 * bridges.length;
+		authFindings.push({
+			severity: "info",
+			title: `${bridges.length} inbound bridge${bridges.length > 1 ? "s" : ""} enabled`,
+			detail: `${bridges.map(([, n]) => n).join(", ")} — anyone holding the shared secret can reach these endpoints. Rotate on exposure.`,
+		});
+	}
+	authScore = Math.max(0, authScore);
+	if (authFindings.length === 0) {
+		authFindings.push({ severity: "info", title: "Least privilege", detail: "Only observe + operate are granted; nothing can move value, speak outward, or reach your machine." });
+	}
+
 	const dimensions: DimensionScore[] = [
 		{ dimension: "contract", score: Math.min(1, contractScore), label: "Smart-contract", detail: chain.linked ? "On-chain, fixed supply, frozen metadata." : "Publishable; fixed supply & frozen metadata by design.", findings: contractFindings },
 		{ dimension: "custody", score: Math.min(1, custodyScore), label: "Key custody", detail: "Keys never touch the cloud; watching treasury concentration.", findings: custodyFindings },
 		{ dimension: "privacy", score: Math.min(1, privacyScore), label: "Privacy & KYC", detail: "Consent-gated notes; attestations are hashed, not identity.", findings: privacyFindings },
 		{ dimension: "decentralization", score: decScore, label: "Decentralization", detail: `${holders} holders; ${chain.linked ? "on-chain" : "off-chain"} settlement.`, findings: decFindings },
 		{ dimension: "redteam", score: redScore, label: "Red-team integrity", detail: "Adversarial checks on ledgers, supply, and balances.", findings: redFindings },
+		{ dimension: "authority", score: authScore, label: "Authority & blast radius", detail: `${scopes.filter((x) => x.granted === 1).length}/${scopes.length} scopes granted; ${bridges.length} bridge(s) enabled.`, findings: authFindings },
 	];
 
 	const composite = dimensions.reduce((n, d) => n + d.score * DIM_WEIGHTS[d.dimension], 0) * 100;
