@@ -154,6 +154,10 @@ export const dashHtml = `<!doctype html>
   .feed { display: flex; flex-direction: column; gap: 10px; max-height: 320px; overflow-y: auto; }
   .report { border-left: 2px solid var(--series-1); padding-left: 10px; }
   .report.learning { border-left-color: var(--series-2); }
+  /* Acts Lumi took unattended stand out — a decision made while nobody was
+     watching should never look like routine chatter in the feed. */
+  .report.initiative { border-left-color: var(--series-4); }
+  .report.initiative .who { color: var(--series-4); }
   .report.milestone { border-left-color: var(--warning); }
   .report .who { font-size: 11px; color: var(--muted); text-transform: capitalize; }
   .report .title { font-size: 13px; font-weight: 600; }
@@ -428,6 +432,31 @@ export const dashHtml = `<!doctype html>
   .orch-task.council { border-left-color: var(--series-4); }
   .orch-task.council .who { color: var(--series-4); }
   #orch-go:disabled { opacity: 0.5; }
+  /* MACHINE — the local-agent bridge */
+  .machine { background: var(--page); border: 1px solid var(--border); border-radius: 10px;
+    padding: 11px 14px; margin-bottom: 12px; }
+  .machine:empty { display: none; }
+  .mc-head { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-bottom: 4px; }
+  .mc-core { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--baseline); }
+  .machine.linked .mc-core { background: var(--series-2); box-shadow: 0 0 7px rgba(25,158,112,0.8);
+    animation: breathe 2.6s ease-in-out infinite; }
+  .mc-head .t { font-weight: 700; letter-spacing: 0.3px; }
+  .mc-head .pend { margin-left: auto; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--series-3); border: 1px solid var(--series-3); border-radius: 999px; padding: 1px 8px; }
+  .mc-note { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .mc-tasks { margin-top: 9px; display: flex; flex-direction: column; gap: 5px; }
+  .mc-task { display: flex; gap: 9px; align-items: baseline; font-size: 11.5px; padding: 5px 9px;
+    background: var(--surface); border-radius: 6px; border-left: 2px solid var(--baseline);
+    animation: slidein 0.3s ease-out both; }
+  .mc-task.done { border-left-color: var(--good); }
+  .mc-task.refused { border-left-color: var(--warning); }
+  .mc-task.failed { border-left-color: var(--critical); }
+  .mc-task.claimed, .mc-task.queued { border-left-color: var(--series-3); }
+  .mc-task .cmd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink-2); flex: none; }
+  .mc-task .out { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mc-task .st { margin-left: auto; flex: none; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+  .mc-task.done .st { color: var(--good); } .mc-task.refused .st { color: var(--warning); }
+  .mc-task.failed .st { color: var(--critical); }
   /* JARVIS — the total-command bar */
   .jarvis { margin-bottom: 16px; }
   .jv-bar { display: flex; align-items: center; gap: 11px; background: var(--page);
@@ -682,6 +711,7 @@ export const dashHtml = `<!doctype html>
   </div>
   <div class="orch-sub">Agents run their real engine actions on dispatch. Models link through their APIs — Claude comes online when <b>ANTHROPIC_API_KEY</b> is set. Every order and outcome is logged.</div>
   <div class="orch-roster" id="orch-roster"></div>
+  <div class="machine" id="machine-panel"></div>
   <div class="orch-console">
     <span class="orch-prompt">⌁</span>
     <span class="orch-target-chip" id="orch-target-chip">lumi</span>
@@ -920,6 +950,7 @@ function render(d) {
   renderOrchestrator(d.orchestrator || null);
   renderChamber(lastCouncil);
   renderJarvis(d.command || null);
+  renderMachine(d.local || null);
   firstPaint = false;
 }
 
@@ -951,6 +982,26 @@ function renderOrchestrator(o) {
       '<span class="st">' + esc(t.status) + '</span></div>'
     ).join("") || '<div class="empty">No dispatches yet — pick an intelligence and give the order.</div>';
   }
+}
+
+// MACHINE — the local-agent bridge. "linked" means a secret is configured; the
+// task timestamps show whether an agent is actually picking work up.
+function renderMachine(m) {
+  const el = $("machine-panel");
+  if (!el) return;
+  if (!m) { el.innerHTML = ""; return; }
+  el.className = "machine" + (m.linked ? " linked" : "");
+  const tasks = (m.tasks || []).map(t =>
+    '<div class="mc-task ' + esc(t.status) + '"><span class="cmd">' + esc(t.task) + '</span>' +
+    '<span class="out">' + esc(t.result || (t.status === "queued" ? "waiting for your machine…" : "")) + '</span>' +
+    '<span class="st">' + esc(t.status) + '</span></div>'
+  ).join("");
+  el.innerHTML =
+    '<div class="mc-head"><span class="mc-core"></span><span class="t">MACHINE — ' +
+      (m.linked ? "bridge configured" : "not linked") + '</span>' +
+      (m.pending ? '<span class="pend">' + m.pending + ' pending</span>' : '') + '</div>' +
+    '<div class="mc-note">' + esc(m.note) + '</div>' +
+    (tasks ? '<div class="mc-tasks">' + tasks + '</div>' : '');
 }
 
 // JARVIS — grants, boundary, and the last order's outcome.
@@ -1963,6 +2014,7 @@ $("orch-council").onclick = async () => {
     lastCouncil = result || null;
     renderChamber(lastCouncil);
   renderJarvis(d.command || null);
+  renderMachine(d.local || null);
     input.value = "";
     await load();
   } catch (e) {} finally { orchBusy = false; btn.disabled = false; go.disabled = false; btn.textContent = "⚖ Council"; }

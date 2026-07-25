@@ -1,0 +1,35 @@
+# Local dev secrets for `wrangler dev`. Copy to `.dev.vars` and fill in what
+# you want live locally — `.dev.vars` is gitignored, this example is not.
+#
+#     cp .dev.vars.example .dev.vars
+#
+# Every one of these is OPTIONAL. Leave a line out and that integration
+# reports itself honestly offline instead of pretending to work.
+#
+# In production these are Worker secrets, not this file:
+#     npx wrangler secret put ANTHROPIC_API_KEY
+
+# --- Models Lumi commands (Orchestrator) ---
+# Claude, for counsel and the council. https://console.claude.com
+ANTHROPIC_API_KEY=sk-ant-...
+# Open models via the Hugging Face Inference router.
+HF_TOKEN=hf_...
+
+# --- Lumi's hands on your machine (Local Agent) ---
+# Any long random string. The SAME value must be in your shell as
+# LUMI_AGENT_SECRET when you run: node agent/lumi-agent.mjs
+LOCAL_AGENT_SECRET=choose-a-long-random-string
+
+# --- InMotion RP (Roblox city bridge) ---
+# Same value goes in a ServerStorage StringValue named RP_SHARED_SECRET.
+RP_SHARED_SECRET=choose-another-long-random-string
+
+# --- Growth connectors (real publishing) ---
+# Without these, posts stay local drafts and say so.
+X_TOKEN=
+LINKEDIN_TOKEN=
+
+# --- AETHER on Sui (set by sui/publish.sh after you publish) ---
+AETHER_PACKAGE_ID=
+AETHER_TREASURY_CAP=
+SUI_NETWORK=testnet
