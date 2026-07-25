@@ -95,6 +95,58 @@ describe("App integrity — has the code drifted from the database?", () => {
 		expect(out.result).toContain("structural integrity green");
 	});
 
+	it("watches on every pulse, and stays QUIET while nothing has drifted", async () => {
+		// An automatic check that reports "still fine" every hour trains you to
+		// ignore it. Three healthy pulses must produce no integrity report at all.
+		for (let i = 0; i < 3; i++) {
+			const res = await SELF.fetch("http://local.test/lumi/pulse", { method: "POST" });
+			const r = ((await res.json()) as any).result;
+			expect(r.integrity.ok).toBe(true);
+			expect(r.integrity.note).toContain("steady");
+		}
+		const reports = await env.DB.prepare("SELECT COUNT(*) as n FROM reports WHERE kind = 'integrity'").first<{ n: number }>();
+		expect(reports?.n, "no report while healthy").toBe(0);
+		// The history is still written, so a later investigation has something to read.
+		const rows = await env.DB.prepare("SELECT COUNT(*) as n FROM checks WHERE name = 'app-integrity'").first<{ n: number }>();
+		expect(rows?.n).toBe(3);
+	});
+
+	it("SPEAKS on the pulse when something has drifted, and keeps saying it", async () => {
+		await env.DB.prepare("INSERT INTO authority (scope, granted, detail) VALUES ('sudo', 1, 'rogue')").run();
+		for (let i = 0; i < 2; i++) {
+			const res = await SELF.fetch("http://local.test/lumi/pulse", { method: "POST" });
+			const r = ((await res.json()) as any).result;
+			expect(r.integrity.ok).toBe(false);
+			expect(r.integrity.note).toContain("INTEGRITY BREAK");
+			// The break appears in the pulse's own decision list, where Lumi
+			// narrates what she did — not buried in a side table.
+			expect(r.decisions.join(" ")).toContain("INTEGRITY BREAK");
+		}
+		// An unfixed break is restated every pulse; an all-clear is not.
+		const reports = await env.DB.prepare("SELECT COUNT(*) as n FROM reports WHERE kind = 'integrity'").first<{ n: number }>();
+		expect(reports?.n).toBe(2);
+	});
+
+	it("announces RECOVERY once, then goes quiet again", async () => {
+		await env.DB.prepare("INSERT INTO authority (scope, granted, detail) VALUES ('sudo', 1, 'rogue')").run();
+		await SELF.fetch("http://local.test/lumi/pulse", { method: "POST" }); // breaks
+		await env.DB.prepare("DELETE FROM authority WHERE scope = 'sudo'").run(); // fixed
+
+		const fixed = ((await (await SELF.fetch("http://local.test/lumi/pulse", { method: "POST" })).json()) as any).result;
+		expect(fixed.integrity.ok).toBe(true);
+		expect(fixed.integrity.changed, "the recovery is a state change").toBe(true);
+		expect(fixed.integrity.note).toContain("recovered");
+
+		const recovery = await env.DB.prepare("SELECT title FROM reports WHERE kind = 'integrity' ORDER BY id DESC LIMIT 1").first<{ title: string }>();
+		expect(recovery?.title).toContain("recovered");
+
+		// And it does not keep congratulating itself afterwards.
+		const after = ((await (await SELF.fetch("http://local.test/lumi/pulse", { method: "POST" })).json()) as any).result;
+		expect(after.integrity.changed).toBe(false);
+		const total = await env.DB.prepare("SELECT COUNT(*) as n FROM reports WHERE kind = 'integrity'").first<{ n: number }>();
+		expect(total?.n, "one break report + one recovery report, nothing more").toBe(2);
+	});
+
 	it("rides along in the cockpit payload — no extra call to see it", async () => {
 		const res = await SELF.fetch("http://local.test/analytics/overview");
 		const d = ((await res.json()) as any).result;

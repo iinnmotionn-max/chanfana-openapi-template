@@ -4,6 +4,7 @@ import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
 import { lumiPulse, perfSummary, selfAssess } from "../engine/lumi";
+import { watchIntegrity } from "../engine/appintegrity";
 import { research, scoutMarket } from "../engine/knowledge";
 import { curriculumStatus, runStudy } from "../engine/training";
 
@@ -44,7 +45,11 @@ export class LumiPulse extends OpenAPIRoute {
 
 	public async handle(c: AppContext) {
 		const result = await lumiPulse(c.env.DB);
-		return { success: true, result };
+		// Same structural watch the cron runs — a manual pulse should notice
+		// drift too, not only the unattended one.
+		const integrity = await watchIntegrity(c.env.DB, c.env);
+		result.decisions.push(integrity.note);
+		return { success: true, result: { ...result, integrity } };
 	}
 }
 

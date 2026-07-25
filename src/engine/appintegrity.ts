@@ -273,6 +273,66 @@ export async function auditApp(db: D1Database, env: unknown): Promise<AppIntegri
 	return { ok: fail === 0, score, checks, counts: { pass, warn, fail } };
 }
 
+// The unattended watch. Runs on every pulse (hourly on the cron), so drift is
+// caught by the system rather than by whoever happens to open the cockpit.
+//
+// The hard part of an automatic check is not detecting the break — it's not
+// becoming noise. A report every hour saying "still fine" trains you to ignore
+// the one that says otherwise. So this speaks on CHANGE:
+//
+//   green  → broken   file the break, with the remedy
+//   broken → green    say it recovered, so a fixed problem visibly closes
+//   green  → green    one summary row, no report, silence
+//
+// The summary row is always written, so there is still an hour-by-hour history
+// to look back through when something did go wrong.
+export interface IntegrityWatch {
+	score: number;
+	ok: boolean;
+	changed: boolean;
+	was: "pass" | "fail" | null; // null = first ever run
+	note: string;
+}
+
+export async function watchIntegrity(db: D1Database, env: unknown): Promise<IntegrityWatch> {
+	const audit = await auditApp(db, env);
+	const now: "pass" | "fail" = audit.ok ? "pass" : "fail";
+
+	const prev = await db
+		.prepare("SELECT status FROM checks WHERE name = 'app-integrity' ORDER BY id DESC LIMIT 1")
+		.first<{ status: string }>();
+	const was = prev ? ((prev.status === "pass" ? "pass" : "fail") as "pass" | "fail") : null;
+	const changed = was !== null && was !== now;
+	const broken = audit.checks.filter((c) => c.status === "fail");
+
+	await db
+		.prepare("INSERT INTO checks (realm, name, status, detail) VALUES ('guardian', 'app-integrity', ?, ?)")
+		.bind(now, `${audit.score}/100 — ${audit.counts.pass} pass, ${audit.counts.warn} warn, ${audit.counts.fail} fail`)
+		.run();
+
+	// Every failing pulse re-states the break — including the very first run,
+	// which has no earlier state to have "changed" from. An unfixed structural
+	// break is worth repeating; an all-clear is not.
+	if (!audit.ok) {
+		await recordAppAudit(db, audit);
+		return { score: audit.score, ok: false, changed, was, note: `INTEGRITY BREAK — ${broken.map((c) => c.name).join(", ")}` };
+	}
+
+	if (changed) {
+		await db
+			.prepare("INSERT INTO reports (author, kind, title, body, data, realm) VALUES ('guardian', 'integrity', ?, ?, ?, 'guardian')")
+			.bind(
+				`App integrity recovered — ${audit.score}/100`,
+				"The structural break is gone; the code and the Databank agree again.",
+				JSON.stringify(audit),
+			)
+			.run();
+		return { score: audit.score, ok: true, changed, was, note: "integrity recovered" };
+	}
+
+	return { score: audit.score, ok: true, changed: false, was, note: `integrity steady at ${audit.score}/100` };
+}
+
 // Record an app-integrity audit into the Databank so drift is chronicled over
 // time, not just observed once. Failures raise a report the creator will see.
 export async function recordAppAudit(db: D1Database, audit: AppIntegrity): Promise<void> {

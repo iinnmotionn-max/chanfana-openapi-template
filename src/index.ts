@@ -30,6 +30,7 @@ import {
 } from "./endpoints/aether";
 import { ShieldKyc, ShieldScan, ShieldStatus } from "./endpoints/shield";
 import { IntegrityScan, IntegrityStatus } from "./endpoints/integrity";
+import { watchIntegrity } from "./engine/appintegrity";
 import { AetherWallet, WalletCreate, WalletGet, WalletLink, WalletList, WalletSend } from "./endpoints/wallet";
 import {
 	DefiAddLiquidity,
@@ -256,6 +257,11 @@ import { lumiPulse } from "./engine/lumi";
 export default {
 	fetch: app.fetch,
 	async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-		ctx.waitUntil(lumiPulse(env.DB));
+		// The hourly heartbeat: Lumi pulses, and the app checks its own
+		// structure. The integrity watch runs even if the pulse throws — a
+		// broken engine is exactly when you want to know the wiring drifted.
+		ctx.waitUntil(
+			Promise.allSettled([lumiPulse(env.DB), watchIntegrity(env.DB, env)]),
+		);
 	},
 };
