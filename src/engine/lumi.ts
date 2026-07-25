@@ -11,6 +11,7 @@ import { research, scoutMarket } from "./knowledge";
 import { runStudy } from "./training";
 import { reward } from "./token";
 import { ensureAetherWallet } from "./wallet";
+import { actOnInitiative } from "./autonomy";
 
 export type SkillName = "insight" | "vigilance" | "engineering" | "empathy";
 
@@ -327,6 +328,7 @@ export interface PulseResult {
 	auditOk: boolean;
 	sweepOk: boolean;
 	questsCompleted: { title: string; skill: SkillName; xp: number }[];
+	autonomous: Awaited<ReturnType<typeof actOnInitiative>>;
 	awareness: Awareness;
 	lumi: LumiProfile;
 	durationMs: number;
@@ -393,6 +395,11 @@ export async function lumiPulse(db: D1Database): Promise<PulseResult> {
 	const initiativeNote = await pursueInitiative(db, awareness, before.pulses);
 	if (initiativeNote) decisions.push(initiativeNote);
 
+	// Autonomy: with the `command` grant, she also takes ONE corrective action
+	// on her own read of the situation. Without it, this is a no-op.
+	const autonomous = await actOnInitiative(db);
+	decisions.push(autonomous.acted ? `unattended: ${autonomous.reason} → ${autonomous.action} (${autonomous.result})` : `no unattended action (${autonomous.reason})`);
+
 	await db.prepare("UPDATE lumi_state SET pulses = pulses + 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
 	const lumi = await getLumi(db);
 	const durationMs = Date.now() - t0;
@@ -407,7 +414,7 @@ export async function lumiPulse(db: D1Database): Promise<PulseResult> {
 		)
 		.run();
 
-	return { decisions, cycle, learned, auditOk: audit.ok, sweepOk: sweep.ok, questsCompleted, awareness, lumi, durationMs };
+	return { decisions, cycle, learned, auditOk: audit.ok, sweepOk: sweep.ok, questsCompleted, autonomous, awareness, lumi, durationMs };
 }
 
 function safeJson(raw: string): Record<string, unknown> {
