@@ -29,6 +29,11 @@ export default defineWorkersConfig({
 						// Local-agent bridge: bound so both the 401 path and the
 						// happy path are exercised.
 						LOCAL_AGENT_SECRET: "test-agent-secret",
+						// An OPEN rotation window on both bridges — the outgoing
+						// secrets are still accepted, and every call made on them is
+						// recorded. Tests assert that overlap actually works.
+						LOCAL_AGENT_SECRET_PREVIOUS: "old-agent-secret",
+						RP_SHARED_SECRET_PREVIOUS: "old-rp-secret",
 					},
 				},
 			},

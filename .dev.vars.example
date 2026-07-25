@@ -24,6 +24,28 @@ LOCAL_AGENT_SECRET=choose-a-long-random-string
 # Same value goes in a ServerStorage StringValue named RP_SHARED_SECRET.
 RP_SHARED_SECRET=choose-another-long-random-string
 
+# --- Rotating a bridge secret (no downtime) ---
+# Either bridge above accepts TWO secrets at once, so you can change one
+# without breaking the callers that still hold the old value:
+#
+#   1. Move the old value to <NAME>_PREVIOUS
+#   2. Put the new value in <NAME>
+#   3. Update your agents / game servers at your own pace
+#   4. Delete <NAME>_PREVIOUS
+#
+# Every call that comes in on the _PREVIOUS secret is recorded, and Shield's
+# Authority dimension tells you whether anyone still depends on it — so step 4
+# is a decision you can make from evidence instead of guessing. Leaving the
+# window open costs posture score on purpose: it is two valid secrets.
+#
+# In production the same thing, as Worker secrets:
+#     npx wrangler secret put RP_SHARED_SECRET_PREVIOUS   # paste the OLD value
+#     npx wrangler secret put RP_SHARED_SECRET            # paste the NEW value
+#     npx wrangler secret delete RP_SHARED_SECRET_PREVIOUS  # once nobody uses it
+#
+# LOCAL_AGENT_SECRET_PREVIOUS=the-old-value-during-a-rotation
+# RP_SHARED_SECRET_PREVIOUS=the-old-value-during-a-rotation
+
 # --- Growth connectors (real publishing) ---
 # Without these, posts stay local drafts and say so.
 X_TOKEN=

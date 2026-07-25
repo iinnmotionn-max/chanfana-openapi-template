@@ -6,14 +6,13 @@ import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
 import { agentSecret, claimNext, completeTask, localOverview } from "../engine/local";
-import { secretsMatch } from "../engine/secrets";
+import { isConfigured, matchSecret, noteLegacyUse } from "../engine/rotation";
 import { clearFailures, consume, LIMITS } from "../engine/ratelimit";
 
 // Auth failures are rate-limited into a lockout; call volume is capped
 // separately so a runaway agent loop can't hammer the queue.
-async function gate(c: AppContext, provided: string): Promise<Response | null> {
-	const secret = agentSecret(c.env);
-	if (!secret) {
+async function gate(c: AppContext, provided: string, host = ""): Promise<Response | null> {
+	if (!isConfigured(c.env, "LOCAL_AGENT_SECRET")) {
 		return c.json({ success: false, errors: [{ code: 5032, message: "Local agent disabled — set LOCAL_AGENT_SECRET" }] }, 503);
 	}
 
@@ -23,8 +22,15 @@ async function gate(c: AppContext, provided: string): Promise<Response | null> {
 			"Retry-After": String(locked.retryAfter),
 		});
 	}
-	if (!secretsMatch(provided, secret)) {
+	// Accepts the current secret, or the outgoing one during a rotation window.
+	const age = matchSecret(c.env, "LOCAL_AGENT_SECRET", provided);
+	if (age === null) {
 		return c.json({ success: false, errors: [{ code: 4012, message: "Bad agent secret" }] }, 401);
+	}
+	if (age === "previous") {
+		// Valid, but this caller is on the outgoing key — record it so the
+		// rotation window is visible and can actually be closed.
+		await noteLegacyUse(c.env.DB, "local agent", host);
 	}
 	// Correct secret — forgive earlier fumbles, then cap call volume.
 	await clearFailures(c.env.DB, "auth:local");
@@ -67,7 +73,7 @@ export class LocalNext extends OpenAPIRoute {
 
 	public async handle(c: AppContext) {
 		const { body } = await this.getValidatedData<typeof this.schema>();
-		const denied = await gate(c, body.secret);
+		const denied = await gate(c, body.secret, body.host);
 		if (denied) return denied;
 		return { success: true, result: await claimNext(c.env.DB, body.host || "unknown") };
 	}

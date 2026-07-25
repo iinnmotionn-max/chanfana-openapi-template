@@ -27,6 +27,13 @@ local function sharedSecret(): string
 	return ""
 end
 
+-- Names this game server on every call. It is only used during a secret
+-- rotation: if this place is still calling on the OLD shared secret, the
+-- cockpit can name it instead of saying "someone, somewhere".
+local function placeTag(): string
+	return "place-" .. tostring(game.PlaceId)
+end
+
 -- Credit AETHER to a player for in-city work. Returns (granted, balance) or
 -- (nil, errorMessage). Never throws; a city that can't reach the bridge keeps
 -- running and pays nothing rather than pretending.
@@ -44,6 +51,7 @@ function AetherBridge.grant(userId: number, name: string, amount: number, reason
 				amount = amount,
 				reason = reason,
 				secret = secret,
+				place = placeTag(),
 			}),
 			Enum.HttpContentType.ApplicationJson
 		)
@@ -75,6 +83,7 @@ function AetherBridge.spend(userId: number, amount: number, reason: string): (bo
 				amount = amount,
 				reason = reason,
 				secret = secret,
+				place = placeTag(),
 			}),
 			Enum.HttpContentType.ApplicationJson
 		)

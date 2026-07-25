@@ -5,6 +5,7 @@
 
 import { auditInvest } from "./integrity";
 import { limitStatus } from "./ratelimit";
+import { rotationStatus } from "./rotation";
 import { auditSupply } from "./token";
 import { suiChainStatus } from "./sui";
 import { recordMetric } from "./lumi";
@@ -48,8 +49,9 @@ export const RULES = [
 	{ id: "authority-machine-reach", dimension: "authority", weight: 1 },
 	{ id: "authority-unattended-action", dimension: "authority", weight: 1 },
 	{ id: "authority-bridge-exposure", dimension: "authority", weight: 1 },
+	{ id: "authority-rotation-window", dimension: "authority", weight: 1 },
 ] as const;
-export const RULESET_VERSION = 4; // bump when rules change — the ruleset "learns"
+export const RULESET_VERSION = 5; // bump when rules change — the ruleset "learns"
 
 const DIM_WEIGHTS: Record<Dimension, number> = { contract: 0.18, custody: 0.18, privacy: 0.18, decentralization: 0.14, redteam: 0.18, authority: 0.14 };
 
@@ -154,6 +156,19 @@ export async function assessPosture(db: D1Database, env: unknown): Promise<Postu
 			detail: `${bridges.map(([, n]) => n).join(", ")} — anyone holding the shared secret can reach these endpoints. Rotate on exposure.`,
 		});
 	}
+	// An open rotation window is TWO valid secrets. That is the correct state
+	// while you migrate callers, and a quiet weakness if you forget to close it —
+	// so Shield keeps saying it out loud, and says exactly what's left to do.
+	for (const r of await rotationStatus(db, env)) {
+		if (!r.rotating) continue;
+		authScore -= 0.05;
+		authFindings.push({
+			severity: r.legacyCalls > 0 ? "info" : "warn",
+			title: `Rotation open on the ${r.bridge} bridge`,
+			detail: r.advice,
+		});
+	}
+
 	// A door locked RIGHT NOW means someone is guessing secrets at this moment.
 	// That is not a posture weakness — the lock is working — but it is the kind
 	// of thing a creator should see on the security panel, not in a log file.

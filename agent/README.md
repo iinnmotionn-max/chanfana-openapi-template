@@ -55,6 +55,31 @@ comes back into the cockpit.
 | **Sandboxed to `--workdir`** | Commands run there, not wherever the agent was launched from. |
 | **60s timeout, 4000-char output cap** | A runaway task can't hang or flood the log. |
 
+## Rotating the secret
+
+If `LOCAL_AGENT_SECRET` ever leaks — pasted in a chat, committed by accident,
+typed on a machine you no longer trust — change it. It costs no downtime,
+because the Worker accepts two secrets during a rotation:
+
+```sh
+npx wrangler secret put LOCAL_AGENT_SECRET_PREVIOUS   # paste the OLD value
+npx wrangler secret put LOCAL_AGENT_SECRET            # paste the NEW value
+```
+
+Both now work. Update `LUMI_AGENT_SECRET` in each shell that runs this agent,
+whenever you get to it — nothing breaks in the meantime. Then close the window:
+
+```sh
+npx wrangler secret delete LOCAL_AGENT_SECRET_PREVIOUS
+```
+
+Every call that arrives on the old secret is recorded with the host that made
+it, so Shield's **Authority** panel tells you either *"3 calls still on the old
+key — update those callers"* or *"nobody has used it in 7 days — safe to
+delete"*. You close the window on evidence, not on hope. And while it stays
+open, it costs posture score: an overlap window is two valid secrets, and a
+rotation you forgot to finish is a rotation you didn't do.
+
 ## Straight talk
 
 **The allowlist is a speed bump, not a sandbox.** A security review of this

@@ -136,12 +136,14 @@ the last line of defence.
 ## Architecture (vital core → outward)
 
 ```
-migrations/            Databank schema, one numbered file per feature (0001→0016):
+migrations/            Databank schema, one numbered file per feature (0001→0023):
                        colony (agents/strategies/bots/trades/reports/goals/
                        market_state) → realms/checks/wellness → lumi evolution
                        (skills/quests/metrics) → knowledge → auras → live feed →
                        risk gates → aether token+ledger → shield → defi →
-                       wallet → growth → growthx → invest∪aether merge
+                       wallet → growth → growthx → invest∪aether merge →
+                       gaming realm → orchestrator_tasks → authority ledger →
+                       local_tasks → rate_limits → rotation_events
 src/engine/            The colony's brains:
   market.ts            Deterministic seeded price series (reproducible ticks)
   feed.ts              PriceFeed adapter: sim tape OR replay of banked live ticks
@@ -167,6 +169,17 @@ src/engine/            The colony's brains:
   orchestrator.ts      Lumi's command deck: dispatch to any agent (real engine
                        actions) or model (Claude via Anthropic API, honest
                        adapter); command log in orchestrator_tasks
+  command.ts         Total Command: plain-English → capability, gated by the
+                       authority ledger (scopes: observe/operate/spend/publish/
+                       command/machine)
+  autonomy.ts        One corrective act per pulse when `command` is granted
+  local.ts           The machine-bridge queue (local_tasks): queue → claim → result
+  secrets.ts         Constant-time secret comparison (no timing oracle)
+  ratelimit.ts       Failure lockouts + call caps per bridge; Shield reads it
+  rotation.ts        Two-secret overlap window (KEY / KEY_PREVIOUS) so a bridge
+                       secret can be changed with zero downtime; every call on
+                       the outgoing key is recorded so the window is closeable
+                       on evidence, and Shield nags until it's closed
 src/endpoints/         Reg's API — thin HTTP layer over the engine (see table)
 src/dash/index.ts      Lumi: the self-contained Creator Cockpit — one 1.6k-line
                        HTML doc, inline SVG charts, /analytics/overview polling,
@@ -179,9 +192,10 @@ roblox/                InMotion RP kit: server-side Luau (AetherBridge +
                        Paychecks) that pays Roblox city players conserved
                        AETHER through POST /rp/grant (see roblox/README.md)
 scripts/               dev.sh (local) + golive.sh (Cloudflare deploy)
-tests/integration/     11 suites, 83 tests: seed→trade→learn→evolve; audit→
+tests/integration/     19 suites, 136 tests: seed→trade→learn→evolve; audit→
                        sweep→check-in; aether, wallet, defi, shield, growth(x),
-                       buildplan, freshness
+                       buildplan, freshness, rp, local, orchestrator, command,
+                       autonomy, authority-posture, ratelimit, rotation
 ```
 
 ## The flow (how the agents hand off to each other)
@@ -235,6 +249,7 @@ Full list is auto-documented at `GET /` (OpenAPI). Grouped by realm/subsystem:
 | **InMotion RP** | `POST /rp/grant` `/rp/spend` · `GET /rp/player/:userId` | Roblox city bridge: players earn (treasury→player) and spend (player→treasury) conserved AETHER; secret-gated via `RP_SHARED_SECRET`, off until set |
 | **Total Command** | `GET /command` · `POST /command` · `PATCH /command/authority` | One bar, all control: a plain-English order routes deterministically to one of **15** registered capabilities across every realm, is checked against the **authority ledger** — 6 scopes, `observe`/`operate` granted by default, `spend`/`publish`/`command`/`machine` revoked until the creator grants them — then runs for real and is logged. Boundary stated in-product: the Worker itself has no filesystem/shell/OS, so it cannot touch the creator's computer; the only path to the machine is the `machine` capability, which queues work for the local agent the creator runs themselves (see Local Agent). |
 | **Local Agent** | `GET /local` · `POST /local/next` `/local/result` | Lumi's hands on the creator's machine. She queues a task (needs the `machine` grant); `agent/lumi-agent.mjs`, run by the creator on their own computer, claims it and decides whether to run it — allowlist, no shell, per-task confirmation, sandboxed workdir. The Worker never executes anything; the machine always holds the veto. Secret-gated with `LOCAL_AGENT_SECRET`. |
+| **Bridge hardening** | applies to `/rp/*` and `/local/*` | Both inbound bridges share one gate: constant-time secret comparison (`secrets.ts`), a failure lockout that refuses even the *correct* secret while it holds plus a per-bridge call cap (`ratelimit.ts`), and a **rotation window** (`rotation.ts`) — each bridge accepts `KEY` **and** `KEY_PREVIOUS`, so a compromised secret can be replaced with zero downtime. Calls that arrive on the outgoing key are recorded with their caller, and Shield's Authority dimension reports whether the window can be closed yet; leaving it open costs posture score. |
 | **Orchestrator** | `GET /orchestrator` · `POST /orchestrator/dispatch` `/orchestrator/council` | Lumi commands every intelligence: internal agents run their REAL engine actions (reg→cycle, observer→learn, guardian→sweep, aether→study, shield→scan, growth→scout, lumi→pulse); Claude links via the Anthropic API (`ANTHROPIC_API_KEY`) and open models via Hugging Face Inference (`HF_TOKEN`) — each honestly offline until its key is set; counsel is banked into `knowledge`. Every dispatch logged in `orchestrator_tasks`. **Council** puts one directive to every model at once (parallel) and records who answered — never synthesizing a verdict from voices that didn't speak. |
 | **Aura** | `GET /auras` `/auras/:id/brief` · `POST /auras` | Consent-gated profiles + personalization briefs |
 | **Records / cockpit** | `GET /reports` · `GET /goals` `POST/PATCH` · `GET /analytics/overview` · `GET /dash` · `GET /` | Feed, goals, one-call cockpit payload, dashboard, OpenAPI |

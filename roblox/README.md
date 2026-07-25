@@ -45,6 +45,14 @@ their AETHER leaderstat updates from the live ledger.
   StringValue lives in ServerStorage precisely because clients can't read it.
 - **Fail-quiet.** If the Worker is unreachable, the city keeps running and
   paychecks skip with one warning — nothing pretends to be paid.
+- **Rotatable without downtime.** If the shared secret ever leaks, put the old
+  value in `RP_SHARED_SECRET_PREVIOUS` and the new one in `RP_SHARED_SECRET`
+  (`npx wrangler secret put …`). Both are accepted, so the city keeps paying
+  while you update the StringValue in ServerStorage. Calls still arriving on
+  the old secret are recorded with their place id, and Shield's Authority
+  panel tells you when it's safe to `wrangler secret delete
+  RP_SHARED_SECRET_PREVIOUS` — an overlap window you forget to close is just
+  two valid secrets, so it costs posture score until you do.
 
 ## Extend it
 

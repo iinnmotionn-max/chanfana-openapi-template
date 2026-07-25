@@ -12,19 +12,15 @@ import { z } from "zod";
 import { AppContext } from "../types";
 import { reward, spend } from "../engine/token";
 import { newAddress, walletOverview } from "../engine/wallet";
-import { secretsMatch } from "../engine/secrets";
+import { isConfigured, matchSecret, noteLegacyUse } from "../engine/rotation";
 import { clearFailures, consume, LIMITS } from "../engine/ratelimit";
-
-function configuredSecret(env: unknown): string {
-	const v = (env as Record<string, unknown> | null | undefined)?.RP_SHARED_SECRET;
-	return typeof v === "string" ? v : "";
-}
 
 // Same two-tier gate as the local agent: failed secrets lock the door,
 // call volume is capped so a looping game server can't flood the ledger.
-async function rpGate(c: AppContext, provided: string): Promise<Response | null> {
-	const secret = configuredSecret(c.env);
-	if (!secret) {
+// `who` names the caller (a place id, a server tag) so that if this call comes
+// in on an outgoing secret mid-rotation, the record says who still needs updating.
+async function rpGate(c: AppContext, provided: string, who = ""): Promise<Response | null> {
+	if (!isConfigured(c.env, "RP_SHARED_SECRET")) {
 		return c.json({ success: false, errors: [{ code: 5031, message: "RP bridge disabled — set RP_SHARED_SECRET" }] }, 503);
 	}
 	const locked = await consume(c.env.DB, "auth:rp", LIMITS.auth.limit, LIMITS.auth.window, LIMITS.auth.lockFor);
@@ -33,8 +29,13 @@ async function rpGate(c: AppContext, provided: string): Promise<Response | null>
 			"Retry-After": String(locked.retryAfter),
 		});
 	}
-	if (!secretsMatch(provided, secret)) {
+	// Accepts the current secret, or the outgoing one during a rotation window.
+	const age = matchSecret(c.env, "RP_SHARED_SECRET", provided);
+	if (age === null) {
 		return c.json({ success: false, errors: [{ code: 4011, message: "Bad shared secret" }] }, 401);
+	}
+	if (age === "previous") {
+		await noteLegacyUse(c.env.DB, "roblox city", who);
 	}
 	await clearFailures(c.env.DB, "auth:rp");
 	const called = await consume(c.env.DB, "call:rp", LIMITS.rp.limit, LIMITS.rp.window);
@@ -95,6 +96,7 @@ export class RpGrant extends OpenAPIRoute {
 					amount: z.number().positive().max(100000),
 					reason: z.string().max(120).default("rp"),
 					secret: z.string().default(""),
+					place: z.string().max(80).default(""), // which game server is calling (for rotation tracking)
 				}),
 			),
 		},
@@ -107,7 +109,7 @@ export class RpGrant extends OpenAPIRoute {
 
 	public async handle(c: AppContext) {
 		const { body } = await this.getValidatedData<typeof this.schema>();
-		const denied = await rpGate(c, body.secret);
+		const denied = await rpGate(c, body.secret, body.place);
 		if (denied) return denied;
 
 		const owner = await ensureRpWallet(c.env.DB, body.userId, body.name ?? "");
@@ -140,6 +142,7 @@ export class RpSpend extends OpenAPIRoute {
 					amount: z.number().positive().max(100000),
 					reason: z.string().max(120).default("purchase"),
 					secret: z.string().default(""),
+					place: z.string().max(80).default(""),
 				}),
 			),
 		},
@@ -153,7 +156,7 @@ export class RpSpend extends OpenAPIRoute {
 
 	public async handle(c: AppContext) {
 		const { body } = await this.getValidatedData<typeof this.schema>();
-		const denied = await rpGate(c, body.secret);
+		const denied = await rpGate(c, body.secret, body.place);
 		if (denied) return denied;
 
 		// Spends only debit an existing wallet — a player with no wallet has
