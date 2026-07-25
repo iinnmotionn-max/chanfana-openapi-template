@@ -428,6 +428,41 @@ export const dashHtml = `<!doctype html>
   .orch-task.council { border-left-color: var(--series-4); }
   .orch-task.council .who { color: var(--series-4); }
   #orch-go:disabled { opacity: 0.5; }
+  /* JARVIS — the total-command bar */
+  .jarvis { margin-bottom: 16px; }
+  .jv-bar { display: flex; align-items: center; gap: 11px; background: var(--page);
+    border: 1px solid rgba(144,133,233,0.35); border-radius: 12px; padding: 10px 14px;
+    box-shadow: 0 0 24px rgba(144,133,233,0.10) inset; }
+  .jv-bar:focus-within { border-color: var(--series-4); box-shadow: 0 0 26px rgba(144,133,233,0.28) inset; }
+  .jv-sig { position: relative; width: 20px; height: 20px; flex: none; }
+  .jv-ring { position: absolute; inset: 0; border-radius: 50%; border: 1.5px solid var(--series-4);
+    opacity: 0.55; animation: jv-pulse 2.4s ease-out infinite; }
+  .jv-dot { position: absolute; inset: 6px; border-radius: 50%; background: var(--series-4);
+    box-shadow: 0 0 10px rgba(144,133,233,0.9); animation: breathe 2.4s ease-in-out infinite; }
+  @keyframes jv-pulse { 0% { transform: scale(0.7); opacity: 0.8; } 100% { transform: scale(1.6); opacity: 0; } }
+  .jarvis.busy .jv-ring { animation-duration: 0.8s; }
+  #jv-order { flex: 1; background: none; border: none; color: var(--ink); font-size: 14.5px; padding: 5px 0; letter-spacing: 0.2px; }
+  #jv-order:focus { outline: none; }
+  #jv-go { border-color: var(--series-4); color: var(--series-4); font-weight: 700; letter-spacing: 0.4px; flex: none; }
+  #jv-go:disabled { opacity: 0.5; }
+  .jv-grants { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+  .jv-grant { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; padding: 3px 10px;
+    border-radius: 999px; border: 1px solid var(--baseline); color: var(--muted); cursor: pointer;
+    transition: border-color .2s, color .2s, box-shadow .3s; user-select: none; }
+  .jv-grant:hover { color: var(--ink-2); }
+  .jv-grant.on { border-color: var(--good); color: var(--good); box-shadow: 0 0 10px rgba(12,163,12,0.25); }
+  .jv-grants .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin-right: 3px; }
+  .jv-out { margin-top: 11px; }
+  .jv-out:empty { display: none; }
+  .jv-res { display: flex; gap: 10px; align-items: baseline; font-size: 12.5px; background: var(--page);
+    border-left: 2px solid var(--series-4); border-radius: 6px; padding: 9px 13px; animation: risein 0.35s ease-out both; }
+  .jv-res.refused { border-left-color: var(--warning); }
+  .jv-res.unrouted, .jv-res.failed { border-left-color: var(--critical); }
+  .jv-res .cap { font-weight: 700; color: var(--series-4); flex: none; }
+  .jv-res.refused .cap { color: var(--warning); }
+  .jv-res.unrouted .cap, .jv-res.failed .cap { color: var(--critical); }
+  .jv-res .txt { color: var(--ink-2); white-space: pre-wrap; }
+  .jv-boundary { font-size: 10.5px; color: var(--muted); margin-top: 9px; line-height: 1.5; }
   /* Council chamber — side-by-side comparison of what each model said */
   .orch-chamber { margin-bottom: 12px; }
   .orch-chamber:empty { display: none; }
@@ -635,6 +670,16 @@ export const dashHtml = `<!doctype html>
 
 <div class="card" id="orch-card">
   <h2><span class="orch-crown">◈</span> ORCHESTRATOR — Lumi commands every intelligence</h2>
+  <div class="jarvis">
+    <div class="jv-bar">
+      <span class="jv-sig"><span class="jv-ring"></span><span class="jv-dot"></span></span>
+      <input id="jv-order" type="text" maxlength="2000" placeholder="Command Lumi… (halt · run a cycle · audit · sweep · scan · research X · council X · pay lumi 250)">
+      <button id="jv-go">Execute</button>
+    </div>
+    <div class="jv-grants" id="jv-grants"></div>
+    <div class="jv-out" id="jv-out"></div>
+    <div class="jv-boundary" id="jv-boundary"></div>
+  </div>
   <div class="orch-sub">Agents run their real engine actions on dispatch. Models link through their APIs — Claude comes online when <b>ANTHROPIC_API_KEY</b> is set. Every order and outcome is logged.</div>
   <div class="orch-roster" id="orch-roster"></div>
   <div class="orch-console">
@@ -874,6 +919,7 @@ function render(d) {
   renderRp(d.rp || null);
   renderOrchestrator(d.orchestrator || null);
   renderChamber(lastCouncil);
+  renderJarvis(d.command || null);
   firstPaint = false;
 }
 
@@ -904,6 +950,35 @@ function renderOrchestrator(o) {
       '<span class="dir">' + esc(t.directive) + '</span><span class="res">' + esc(t.result) + '</span>' +
       '<span class="st">' + esc(t.status) + '</span></div>'
     ).join("") || '<div class="empty">No dispatches yet — pick an intelligence and give the order.</div>';
+  }
+}
+
+// JARVIS — grants, boundary, and the last order's outcome.
+let lastCommand = null;
+function renderJarvis(cmd) {
+  const g = $("jv-grants"), b = $("jv-boundary"), o = $("jv-out");
+  if (!g) return;
+  if (cmd) {
+    g.innerHTML = '<span class="lbl">Authority</span>' + (cmd.authority || []).map(a =>
+      '<span class="jv-grant ' + (a.granted ? "on" : "") + '" data-s="' + esc(a.scope) + '" title="' + esc(a.detail) + '">' +
+      (a.granted ? "✓ " : "") + esc(a.scope) + '</span>'
+    ).join("");
+    g.querySelectorAll(".jv-grant").forEach(el => {
+      el.onclick = async () => {
+        const on = el.classList.contains("on");
+        await fetch("/command/authority", { method: "PATCH", cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scope: el.dataset.s, granted: !on }) });
+        await load();
+      };
+    });
+    if (b) b.textContent = cmd.boundary || "";
+  }
+  if (o) {
+    o.innerHTML = lastCommand
+      ? '<div class="jv-res ' + esc(lastCommand.status) + '"><span class="cap">' +
+        esc(lastCommand.capability || "unrouted") + '</span><span class="txt">' + esc(lastCommand.result) + '</span></div>'
+      : "";
   }
 }
 
@@ -1856,6 +1931,23 @@ $("orch-go").onclick = async () => {
 };
 $("orch-directive").addEventListener("keydown", (e) => { if (e.key === "Enter") $("orch-go").click(); });
 
+// Jarvis: speak an order, Lumi routes it, checks her grant, acts.
+$("jv-go").onclick = async () => {
+  const btn = $("jv-go"), input = $("jv-order"), jv = document.querySelector(".jarvis");
+  const order = (input.value || "").trim();
+  if (!order) return;
+  btn.disabled = true; btn.textContent = "Working…"; if (jv) jv.classList.add("busy");
+  try {
+    const res = await fetch("/command", { method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order: order }) });
+    const { result } = await res.json();
+    lastCommand = result || null;
+    input.value = "";
+    await load();
+  } catch (e) {} finally { btn.disabled = false; btn.textContent = "Execute"; if (jv) jv.classList.remove("busy"); }
+};
+$("jv-order").addEventListener("keydown", (e) => { if (e.key === "Enter") $("jv-go").click(); });
+
 // Council: one directive to every model at once. Every model card scans while
 // the votes come in.
 $("orch-council").onclick = async () => {
@@ -1870,6 +1962,7 @@ $("orch-council").onclick = async () => {
     const { result } = await res.json();
     lastCouncil = result || null;
     renderChamber(lastCouncil);
+  renderJarvis(d.command || null);
     input.value = "";
     await load();
   } catch (e) {} finally { orchBusy = false; btn.disabled = false; go.disabled = false; btn.textContent = "⚖ Council"; }

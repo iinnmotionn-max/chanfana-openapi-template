@@ -61,6 +61,7 @@ import {
 } from "./endpoints/growthx";
 import { RpGrant, RpPlayer, RpSpend } from "./endpoints/rp";
 import { OrchestratorCouncil, OrchestratorDispatch, OrchestratorStatus } from "./endpoints/orchestrator";
+import { AuthorityGrant, CommandSpeak, CommandStatus } from "./endpoints/command";
 import { dashHtml } from "./dash";
 
 // Start a Hono app
@@ -228,6 +229,11 @@ openapi.get("/rp/player/:userId", RpPlayer);
 openapi.get("/orchestrator", OrchestratorStatus);
 openapi.post("/orchestrator/dispatch", OrchestratorDispatch);
 openapi.post("/orchestrator/council", OrchestratorCouncil);
+
+// Total Command — one bar, all control, behind the authority ledger
+openapi.get("/command", CommandStatus);
+openapi.post("/command", CommandSpeak);
+openapi.patch("/command/authority", AuthorityGrant);
 
 // Analytics (feeds the cockpit)
 openapi.get("/analytics/overview", AnalyticsOverview);

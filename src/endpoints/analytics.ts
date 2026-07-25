@@ -16,6 +16,7 @@ import { defiOverview } from "../engine/defi";
 import { growthOverview } from "../engine/growth";
 import { connectorStatus, dealsPipeline } from "../engine/growthx";
 import { orchestratorOverview } from "../engine/orchestrator";
+import { commandOverview } from "../engine/command";
 
 const MAX_CURVE_POINTS = 150;
 
@@ -104,6 +105,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				.all(),
 		]);
 		const orchestrator = await orchestratorOverview(db, c.env);
+		const command = await commandOverview(db);
 		const rp = {
 			citizens: rpCitizens?.n ?? 0,
 			cityBalance: Number((rpCitizens?.bal ?? 0).toFixed(2)),
@@ -165,6 +167,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				growth: { ...growth, deals, connectors },
 				rp,
 				orchestrator,
+				command,
 			},
 		};
 	}
