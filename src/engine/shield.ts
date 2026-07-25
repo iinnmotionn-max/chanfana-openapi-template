@@ -4,6 +4,7 @@
 // records findings — so the colony measurably learns to harden itself.
 
 import { auditInvest } from "./integrity";
+import { limitStatus } from "./ratelimit";
 import { auditSupply } from "./token";
 import { suiChainStatus } from "./sui";
 import { recordMetric } from "./lumi";
@@ -151,6 +152,17 @@ export async function assessPosture(db: D1Database, env: unknown): Promise<Postu
 			severity: "info",
 			title: `${bridges.length} inbound bridge${bridges.length > 1 ? "s" : ""} enabled`,
 			detail: `${bridges.map(([, n]) => n).join(", ")} — anyone holding the shared secret can reach these endpoints. Rotate on exposure.`,
+		});
+	}
+	// A door locked RIGHT NOW means someone is guessing secrets at this moment.
+	// That is not a posture weakness — the lock is working — but it is the kind
+	// of thing a creator should see on the security panel, not in a log file.
+	const limits = await limitStatus(db);
+	if (limits.lockedNow > 0) {
+		authFindings.push({
+			severity: "critical",
+			title: `${limits.lockedNow} door locked out right now`,
+			detail: `Repeated failed secrets tripped a lockout: ${limits.buckets.filter((b) => b.locked).map((b) => b.bucket).join(", ")}. Someone is guessing — rotate the secret if you did not cause this.`,
 		});
 	}
 	authScore = Math.max(0, authScore);

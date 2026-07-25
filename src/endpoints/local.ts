@@ -7,14 +7,32 @@ import { z } from "zod";
 import { AppContext } from "../types";
 import { agentSecret, claimNext, completeTask, localOverview } from "../engine/local";
 import { secretsMatch } from "../engine/secrets";
+import { clearFailures, consume, LIMITS } from "../engine/ratelimit";
 
-function gate(c: AppContext, provided: string): Response | null {
+// Auth failures are rate-limited into a lockout; call volume is capped
+// separately so a runaway agent loop can't hammer the queue.
+async function gate(c: AppContext, provided: string): Promise<Response | null> {
 	const secret = agentSecret(c.env);
 	if (!secret) {
 		return c.json({ success: false, errors: [{ code: 5032, message: "Local agent disabled — set LOCAL_AGENT_SECRET" }] }, 503);
 	}
+
+	const locked = await consume(c.env.DB, "auth:local", LIMITS.auth.limit, LIMITS.auth.window, LIMITS.auth.lockFor);
+	if (!locked.ok) {
+		return c.json({ success: false, errors: [{ code: 4290, message: `Too many failed attempts — retry in ${locked.retryAfter}s` }] }, 429, {
+			"Retry-After": String(locked.retryAfter),
+		});
+	}
 	if (!secretsMatch(provided, secret)) {
 		return c.json({ success: false, errors: [{ code: 4012, message: "Bad agent secret" }] }, 401);
+	}
+	// Correct secret — forgive earlier fumbles, then cap call volume.
+	await clearFailures(c.env.DB, "auth:local");
+	const called = await consume(c.env.DB, "call:local", LIMITS.local.limit, LIMITS.local.window);
+	if (!called.ok) {
+		return c.json({ success: false, errors: [{ code: 4291, message: `Rate limit exceeded — retry in ${called.retryAfter}s` }] }, 429, {
+			"Retry-After": String(called.retryAfter),
+		});
 	}
 	return null;
 }
@@ -49,7 +67,7 @@ export class LocalNext extends OpenAPIRoute {
 
 	public async handle(c: AppContext) {
 		const { body } = await this.getValidatedData<typeof this.schema>();
-		const denied = gate(c, body.secret);
+		const denied = await gate(c, body.secret);
 		if (denied) return denied;
 		return { success: true, result: await claimNext(c.env.DB, body.host || "unknown") };
 	}
@@ -79,7 +97,7 @@ export class LocalResult extends OpenAPIRoute {
 
 	public async handle(c: AppContext) {
 		const { body } = await this.getValidatedData<typeof this.schema>();
-		const denied = gate(c, body.secret);
+		const denied = await gate(c, body.secret);
 		if (denied) return denied;
 		const res = await completeTask(c.env.DB, body.id, body.status, body.result);
 		if ("error" in res) {

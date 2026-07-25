@@ -13,10 +13,37 @@ import { AppContext } from "../types";
 import { reward, spend } from "../engine/token";
 import { newAddress, walletOverview } from "../engine/wallet";
 import { secretsMatch } from "../engine/secrets";
+import { clearFailures, consume, LIMITS } from "../engine/ratelimit";
 
 function configuredSecret(env: unknown): string {
 	const v = (env as Record<string, unknown> | null | undefined)?.RP_SHARED_SECRET;
 	return typeof v === "string" ? v : "";
+}
+
+// Same two-tier gate as the local agent: failed secrets lock the door,
+// call volume is capped so a looping game server can't flood the ledger.
+async function rpGate(c: AppContext, provided: string): Promise<Response | null> {
+	const secret = configuredSecret(c.env);
+	if (!secret) {
+		return c.json({ success: false, errors: [{ code: 5031, message: "RP bridge disabled — set RP_SHARED_SECRET" }] }, 503);
+	}
+	const locked = await consume(c.env.DB, "auth:rp", LIMITS.auth.limit, LIMITS.auth.window, LIMITS.auth.lockFor);
+	if (!locked.ok) {
+		return c.json({ success: false, errors: [{ code: 4290, message: `Too many failed attempts — retry in ${locked.retryAfter}s` }] }, 429, {
+			"Retry-After": String(locked.retryAfter),
+		});
+	}
+	if (!secretsMatch(provided, secret)) {
+		return c.json({ success: false, errors: [{ code: 4011, message: "Bad shared secret" }] }, 401);
+	}
+	await clearFailures(c.env.DB, "auth:rp");
+	const called = await consume(c.env.DB, "call:rp", LIMITS.rp.limit, LIMITS.rp.window);
+	if (!called.ok) {
+		return c.json({ success: false, errors: [{ code: 4291, message: `Rate limit exceeded — retry in ${called.retryAfter}s` }] }, 429, {
+			"Retry-After": String(called.retryAfter),
+		});
+	}
+	return null;
 }
 
 // A stable, safe owner handle for a Roblox player: rp-<userId>.
@@ -80,13 +107,8 @@ export class RpGrant extends OpenAPIRoute {
 
 	public async handle(c: AppContext) {
 		const { body } = await this.getValidatedData<typeof this.schema>();
-		const secret = configuredSecret(c.env);
-		if (!secret) {
-			return c.json({ success: false, errors: [{ code: 5031, message: "RP bridge disabled — set RP_SHARED_SECRET" }] }, 503);
-		}
-		if (!secretsMatch(body.secret, secret)) {
-			return c.json({ success: false, errors: [{ code: 4011, message: "Bad shared secret" }] }, 401);
-		}
+		const denied = await rpGate(c, body.secret);
+		if (denied) return denied;
 
 		const owner = await ensureRpWallet(c.env.DB, body.userId, body.name ?? "");
 		const before = await c.env.DB.prepare("SELECT balance FROM aether_accounts WHERE owner = ?").bind(owner).first<{ balance: number }>();
@@ -131,13 +153,8 @@ export class RpSpend extends OpenAPIRoute {
 
 	public async handle(c: AppContext) {
 		const { body } = await this.getValidatedData<typeof this.schema>();
-		const secret = configuredSecret(c.env);
-		if (!secret) {
-			return c.json({ success: false, errors: [{ code: 5031, message: "RP bridge disabled — set RP_SHARED_SECRET" }] }, 503);
-		}
-		if (!secretsMatch(body.secret, secret)) {
-			return c.json({ success: false, errors: [{ code: 4011, message: "Bad shared secret" }] }, 401);
-		}
+		const denied = await rpGate(c, body.secret);
+		if (denied) return denied;
 
 		// Spends only debit an existing wallet — a player with no wallet has
 		// nothing to spend, so unlike grants we don't create one here.
