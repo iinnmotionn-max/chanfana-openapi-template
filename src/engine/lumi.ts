@@ -8,6 +8,7 @@ import { runLearning } from "./learning";
 import { auditInvest, recordAudit } from "./integrity";
 import { runSweep } from "./guardian";
 import { research, scoutMarket } from "./knowledge";
+import { runNewsroom } from "./newsroom";
 import { runStudy } from "./training";
 import { reward } from "./token";
 import { ensureAetherWallet } from "./wallet";
@@ -382,6 +383,13 @@ export async function lumiPulse(db: D1Database, env?: unknown): Promise<PulseRes
 	await recordMetric(db, "sweep_ms", Date.now() - s0, { ok: sweep.ok });
 	decisions.push(`audit ${audit.ok ? "green" : "FAILED"}, sweep ${sweep.ok ? "clear" : "FAILED"}`);
 	await awardXp(db, "vigilance", (audit.ok ? 8 : 0) + (sweep.ok ? 8 : 0), "Audit + sweep");
+
+	// The newsroom: draft posts from what actually happened this hour. It writes
+	// nothing when there is nothing new, which is the whole point — an hourly
+	// feed obliged to fill every slot is a feed that starts inventing.
+	const news = await runNewsroom(db, env, 3).catch((e) => ({ drafted: 0, skipped: 0, posts: [], note: `newsroom failed: ${String(e).slice(0, 120)}` }));
+	decisions.push(news.drafted > 0 ? `drafted ${news.drafted} post(s) from real events: ${news.posts.map((p) => p.platform).join(", ")}` : news.note);
+	if (news.drafted > 0) await awardXp(db, "empathy", 4 * news.drafted, "Newsroom drafts");
 
 	// Progress the quest line.
 	const questsCompleted = await checkQuests(db);

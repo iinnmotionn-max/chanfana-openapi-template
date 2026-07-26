@@ -95,6 +95,7 @@ export const ROUTE_POLICY: RoutePolicy[] = [
 	{ route: "POST /growth/campaign", protection: "open", why: "record-keeping" },
 	{ route: "POST /growth/lead", protection: "open", why: "record-keeping" },
 	{ route: "POST /growth/scout", protection: "open", why: "reads public sources for opportunities" },
+	{ route: "POST /growth/newsroom", protection: "open", why: "drafts posts from recorded events; drafts never leave the system" },
 	{ route: "POST /growth/deal", protection: "open", why: "record-keeping" },
 	{ route: "PATCH /growth/deal/:id", protection: "open", why: "record-keeping" },
 	{ route: "POST /orchestrator/dispatch", protection: "open", why: "runs an agent's real engine action; each is otherwise open" },

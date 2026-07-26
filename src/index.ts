@@ -32,6 +32,7 @@ import { ShieldKyc, ShieldScan, ShieldStatus } from "./endpoints/shield";
 import { IntegrityProbe, IntegrityScan, IntegrityStatus, ReadinessStatus } from "./endpoints/integrity";
 import { BridgeCallers, BridgeTrust } from "./endpoints/bridges";
 import { ObsidianExport, ObsidianManifest } from "./endpoints/obsidian";
+import { NewsroomRunNow, NewsroomStatus } from "./endpoints/newsroom";
 import { watchIntegrity } from "./engine/appintegrity";
 import { setSelfHandler } from "./engine/selfref";
 import { recordRun } from "./engine/automation";
@@ -232,6 +233,10 @@ openapi.post("/growth/campaign", GrowthCampaign);
 openapi.post("/growth/lead", GrowthLead);
 openapi.get("/growth/leads", GrowthLeads);
 openapi.post("/growth/scout", GrowthScout);
+
+// Newsroom — hourly drafts from what actually happened
+openapi.get("/growth/newsroom", NewsroomStatus);
+openapi.post("/growth/newsroom", NewsroomRunNow);
 // Growth v2 — connectors (real publishing), deals pipeline, analytics
 openapi.get("/growth/connectors", ConnectorsList);
 openapi.post("/growth/connect", ConnectorConnect);
