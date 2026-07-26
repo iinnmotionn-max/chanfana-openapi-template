@@ -29,9 +29,10 @@ import {
 	AetherTransfer,
 } from "./endpoints/aether";
 import { ShieldKyc, ShieldScan, ShieldStatus } from "./endpoints/shield";
-import { IntegrityScan, IntegrityStatus } from "./endpoints/integrity";
+import { IntegrityProbe, IntegrityScan, IntegrityStatus } from "./endpoints/integrity";
 import { BridgeCallers, BridgeTrust } from "./endpoints/bridges";
 import { watchIntegrity } from "./engine/appintegrity";
+import { setSelfHandler } from "./engine/selfref";
 import { AetherWallet, WalletCreate, WalletGet, WalletLink, WalletList, WalletSend } from "./endpoints/wallet";
 import {
 	DefiAddLiquidity,
@@ -209,6 +210,7 @@ openapi.post("/shield/kyc", ShieldKyc);
 // App integrity — structural self-check: does the code still agree with the DB?
 openapi.get("/integrity", IntegrityStatus);
 openapi.post("/integrity/scan", IntegrityScan);
+openapi.post("/integrity/probe", IntegrityProbe);
 
 // Bridge callers — who walks through the inbound doors, and who you vouch for
 openapi.get("/bridges", BridgeCallers);
@@ -258,6 +260,10 @@ openapi.get("/analytics/overview", AnalyticsOverview);
 // Scheduled autonomy: on a Cron Trigger firing, Lumi pulses herself —
 // trades, learns, audits, sweeps, pursues her initiative — unattended.
 import { lumiPulse } from "./engine/lumi";
+
+// Hand the router to the guard probe so the system can attack itself
+// through the real request path (see engine/selfref.ts).
+setSelfHandler(async (req, env) => app.fetch(req, env as never));
 
 export default {
 	fetch: app.fetch,

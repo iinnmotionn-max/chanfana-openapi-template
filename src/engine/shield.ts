@@ -8,6 +8,7 @@ import { limitStatus } from "./ratelimit";
 import { rotationStatus } from "./rotation";
 import { unknownCallers } from "./callers";
 import { creatorKeySet } from "./creator";
+import { probeGuards } from "./probe";
 import { auditSupply } from "./token";
 import { suiChainStatus } from "./sui";
 import { recordMetric } from "./lumi";
@@ -54,8 +55,9 @@ export const RULES = [
 	{ id: "authority-rotation-window", dimension: "authority", weight: 1 },
 	{ id: "authority-caller-identity", dimension: "authority", weight: 1 },
 	{ id: "authority-control-plane", dimension: "authority", weight: 1 },
+	{ id: "authority-guards-proven", dimension: "authority", weight: 1 },
 ] as const;
-export const RULESET_VERSION = 7; // bump when rules change — the ruleset "learns"
+export const RULESET_VERSION = 8; // bump when rules change — the ruleset "learns"
 
 const DIM_WEIGHTS: Record<Dimension, number> = { contract: 0.18, custody: 0.18, privacy: 0.18, decentralization: 0.14, redteam: 0.18, authority: 0.14 };
 
@@ -170,6 +172,22 @@ export async function assessPosture(db: D1Database, env: unknown): Promise<Postu
 			severity: r.legacyCalls > 0 ? "info" : "warn",
 			title: `Rotation open on the ${r.bridge} bridge`,
 			detail: r.advice,
+		});
+	}
+
+	// The guards themselves, proven rather than assumed. Shield used to score
+	// "spend is granted, that costs posture" — while the endpoint that spends
+	// was open to anyone. The probe attacks our own locked routes; a hole here
+	// invalidates every other authority line above it.
+	const guards = await probeGuards("http://self.local", env).catch(() => null);
+	if (guards && !guards.ok) {
+		authScore = 0;
+		authFindings.push({
+			severity: "critical",
+			title: `${guards.holes.length} route(s) that must require the creator key do NOT`,
+			detail:
+				`${guards.holes.map((h) => `${h.route}: ${h.note}`).join("; ")}. ` +
+				"Until this is fixed, every scope on this panel is advisory — the power is reachable without the ledger.",
 		});
 	}
 

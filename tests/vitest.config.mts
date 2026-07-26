@@ -1,4 +1,5 @@
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import {
 	defineWorkersConfig,
 	readD1Migrations,
@@ -6,6 +7,12 @@ import {
 
 const migrationsPath = path.join(__dirname, "..", "migrations");
 const migrations = await readD1Migrations(migrationsPath);
+
+// The route table, read from source at config time (Node) and handed to the
+// Worker as a binding. Tests inside workerd have no filesystem, but the one
+// thing that must never drift — every writing route being classified in
+// policy.ts — can only be checked against the actual registrations.
+const indexSource = await readFile(path.join(__dirname, "..", "src", "index.ts"), "utf8");
 
 export default defineWorkersConfig({
 	esbuild: {
@@ -23,6 +30,7 @@ export default defineWorkersConfig({
 					compatibilityFlags: ["experimental", "nodejs_compat"],
 					bindings: {
 						MIGRATIONS: migrations,
+						INDEX_SOURCE: indexSource,
 						// The RP bridge is secret-gated; give tests a known secret so
 						// both the happy path and the 401 path are exercised.
 						RP_SHARED_SECRET: "test-rp-secret",

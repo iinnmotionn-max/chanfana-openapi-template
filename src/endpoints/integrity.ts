@@ -5,6 +5,7 @@ import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
 import { auditApp, recordAppAudit } from "../engine/appintegrity";
+import { probeGuards } from "../engine/probe";
 
 export class IntegrityStatus extends OpenAPIRoute {
 	public schema = {
@@ -17,6 +18,41 @@ export class IntegrityStatus extends OpenAPIRoute {
 
 	public async handle(c: AppContext) {
 		return { success: true, result: await auditApp(c.env.DB, c.env) };
+	}
+}
+
+export class IntegrityProbe extends OpenAPIRoute {
+	public schema = {
+		tags: ["Integrity"],
+		summary: "Red-team the guards: call every locked route anonymously and demand a refusal",
+		responses: {
+			"200": { description: "Probe report", ...contentJson({ success: z.boolean(), result: z.any() }) },
+		},
+	};
+
+	public async handle(c: AppContext) {
+		// Probes hit this same Worker over HTTP, so they exercise the real
+		// request path — middleware, routing, handler order and all. A guard
+		// that only exists in the source but not in the served route would
+		// pass a source review and fail here, which is the whole point.
+		const report = await probeGuards(new URL(c.req.url).origin, c.env);
+		if (!report.ok) {
+			await c.env.DB.prepare(
+				"INSERT INTO reports (author, kind, title, body, data, realm) VALUES ('guardian', 'integrity', ?, ?, ?, 'guardian')",
+			)
+				.bind(
+					`UNGUARDED ROUTE — ${report.holes.length} of ${report.probed} locked routes answered an anonymous caller`,
+					report.holes.map((h) => `${h.route}: ${h.note}`).join("\n"),
+					JSON.stringify(report),
+				)
+				.run();
+		}
+		for (const r of report.results) {
+			await c.env.DB.prepare("INSERT INTO checks (realm, name, status, detail) VALUES ('guardian', ?, ?, ?)")
+				.bind(`guard:${r.route}`, r.guarded ? "pass" : "fail", r.note)
+				.run();
+		}
+		return { success: true, result: report };
 	}
 }
 

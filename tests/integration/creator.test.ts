@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 // These tests are the proof that move no longer works.
 
 const KEY = "test-creator-key";
+const auth0 = (p: any) => p.dimensions.find((d: any) => d.dimension === "authority");
 
 async function send(method: string, path: string, body: unknown, key?: string) {
 	const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -134,8 +135,11 @@ describe("The control plane has a lock — the ledger is not self-serve", () => 
 
 	it("Shield reports the control plane's state on the security panel", async () => {
 		const p = ((await (await SELF.fetch("http://local.test/shield")).json()) as any).result.posture;
-		expect(p.rulesetVersion).toBe(7);
-		const auth = p.dimensions.find((d: any) => d.dimension === "authority");
+		expect(p.rulesetVersion).toBe(8);
+		// Shield proves the guards on every scan rather than trusting the policy
+		// table — a hole there would invalidate every other authority line.
+		expect(auth0(p).findings.find((f: any) => f.title.includes("do NOT")), "no unguarded routes").toBeFalsy();
+		const auth = auth0(p);
 		// The key IS set in tests, so the "no key" notice must be absent —
 		// asserting the finding is driven by real state, not always emitted.
 		expect(auth.findings.find((f: any) => f.title.includes("No creator key"))).toBeFalsy();
