@@ -1,10 +1,16 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
+// These suites exercise Lumi's AUTHORITY model — what she may do once a scope
+// is granted. Granting a consequential scope now needs the creator key, so
+// every request here speaks as the creator. The lock itself is what
+// creator.test.ts tests; here it would only be noise.
+const CREATOR_KEY = "test-creator-key";
+
 async function post(path: string, body: unknown = {}) {
 	const res = await SELF.fetch(`http://local.test${path}`, {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: { "Content-Type": "application/json", "X-Creator-Key": CREATOR_KEY },
 		body: JSON.stringify(body),
 	});
 	return { status: res.status, body: (await res.json()) as any };
@@ -12,7 +18,7 @@ async function post(path: string, body: unknown = {}) {
 async function patch(path: string, body: unknown = {}) {
 	const res = await SELF.fetch(`http://local.test${path}`, {
 		method: "PATCH",
-		headers: { "Content-Type": "application/json" },
+		headers: { "Content-Type": "application/json", "X-Creator-Key": CREATOR_KEY },
 		body: JSON.stringify(body),
 	});
 	return { status: res.status, body: (await res.json()) as any };
@@ -80,6 +86,32 @@ describe("Local agent — Lumi's hands on the creator's machine", () => {
 
 		const status = await get("/local");
 		expect(status.body.result.tasks[0].status).toBe("refused");
+	});
+
+	it("a task can only be completed ONCE, and only after it is claimed", async () => {
+		await patch("/command/authority", { scope: "machine", granted: true });
+		await post("/command", { order: "on my machine: git status" });
+
+		// Reporting on a task nobody has claimed would mark a command as run
+		// when nothing ever ran it.
+		const queued = await get("/local");
+		const id = queued.body.result.tasks.find((t: any) => t.status === "queued").id;
+		const premature = await post("/local/result", { secret: SECRET, id, status: "done", result: "never ran" });
+		expect(premature.status).toBe(400);
+		expect(premature.body.errors[0].message).toContain("not claimed");
+
+		// Claim it, report once — fine.
+		await post("/local/next", { secret: SECRET, host: "box-a" });
+		const first = await post("/local/result", { secret: SECRET, id, status: "done", result: "clean" });
+		expect(first.status).toBe(200);
+
+		// A second report must not overwrite the real outcome.
+		const second = await post("/local/result", { secret: SECRET, id, status: "failed", result: "forged" });
+		expect(second.status).toBe(400);
+		const after = await get("/local");
+		const task = after.body.result.tasks.find((t: any) => t.id === id);
+		expect(task.status).toBe("done");
+		expect(task.result).toBe("clean");
 	});
 
 	it("records a completed task with its output", async () => {

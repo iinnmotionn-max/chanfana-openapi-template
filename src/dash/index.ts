@@ -756,6 +756,7 @@ export const dashHtml = `<!doctype html>
       <input id="jv-order" type="text" maxlength="2000" placeholder="Command Lumi… (halt · run a cycle · audit · self check · sweep · scan · research X · council X)">
       <button class="jv-icon" id="jv-mic" title="Speak an order">🎙</button>
       <button class="jv-icon" id="jv-voice" title="Lumi speaks her replies aloud">🔈</button>
+      <button class="jv-icon" id="jv-key" title="Creator key — needed to spend, publish, act unattended, or reach your machine">🔑</button>
       <button id="jv-go">Execute</button>
     </div>
     <div class="jv-heard" id="jv-heard"></div>
@@ -1087,9 +1088,16 @@ function renderJarvis(cmd, integrity, callers) {
     g.querySelectorAll(".jv-grant").forEach(el => {
       el.onclick = async () => {
         const on = el.classList.contains("on");
-        await fetch("/command/authority", { method: "PATCH", cache: "no-store",
-          headers: { "Content-Type": "application/json" },
+        const r = await fetch("/command/authority", { method: "PATCH", cache: "no-store",
+          headers: ctlHeaders(),
           body: JSON.stringify({ scope: el.dataset.s, granted: !on }) });
+        if (!r.ok) {
+          // A refused grant must say why, not silently snap back.
+          const e = await r.json().catch(() => null);
+          const msg = e && e.errors && e.errors[0] ? e.errors[0].message : "That grant was refused.";
+          const out = $("jv-out");
+          if (out) out.innerHTML = '<div class="jv-res refused"><span class="cap">authority</span><span class="txt">' + esc(msg) + '</span></div>' + out.innerHTML;
+        }
         await load();
       };
     });
@@ -2090,6 +2098,34 @@ $("orch-go").onclick = async () => {
 $("orch-directive").addEventListener("keydown", (e) => { if (e.key === "Enter") $("orch-go").click(); });
 
 // Jarvis: speak an order, Lumi routes it, checks her grant, acts.
+// The creator key lives only in this tab (sessionStorage), never on disk and
+// never in the Databank. Close the tab and it's gone — which is the point.
+function creatorKey() { try { return sessionStorage.getItem("lumi-key") || ""; } catch (e) { return ""; } }
+function ctlHeaders() {
+  const h = { "Content-Type": "application/json" };
+  const k = creatorKey();
+  if (k) h["X-Creator-Key"] = k;
+  return h;
+}
+function markKeyButton() {
+  const b = $("jv-key");
+  if (b) { b.classList.toggle("on", !!creatorKey()); b.textContent = creatorKey() ? "🔓" : "🔑"; }
+}
+$("jv-key").onclick = () => {
+  const has = !!creatorKey();
+  if (has && !confirm("Forget the creator key for this tab?")) return;
+  try {
+    if (has) sessionStorage.removeItem("lumi-key");
+    else {
+      const k = prompt("Creator key (kept in this tab only, never stored server-side):");
+      if (k) sessionStorage.setItem("lumi-key", k);
+    }
+  } catch (e) {}
+  markKeyButton();
+  load();
+};
+markKeyButton();
+
 function stamp() {
   const d = new Date();
   return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + ":" + String(d.getSeconds()).padStart(2, "0");
@@ -2103,7 +2139,7 @@ async function runOrder(order) {
   btn.disabled = true; btn.textContent = "Working…"; if (jv) jv.classList.add("busy");
   try {
     const res = await fetch("/command", { method: "POST", cache: "no-store",
-      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ order: order }) });
+      headers: ctlHeaders(), body: JSON.stringify({ order: order }) });
     const { result } = await res.json();
     lastCommand = result || null;
     if (lastCommand) {

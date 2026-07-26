@@ -29,6 +29,7 @@ import { transfer } from "./token";
 import { setHalt } from "./risk";
 import { localOverview, queueTask } from "./local";
 import { auditApp, recordAppAudit } from "./appintegrity";
+import { isGuarded, KEY_MISSING_NOTE } from "./creator";
 
 export type Scope = "observe" | "operate" | "spend" | "publish" | "command" | "machine";
 
@@ -45,9 +46,19 @@ export async function getAuthority(db: D1Database): Promise<Authority[]> {
 	return rows.map((r) => ({ scope: r.scope, granted: r.granted === 1, detail: r.detail }));
 }
 
-export async function setAuthority(db: D1Database, scope: string, granted: boolean): Promise<Authority | { error: string }> {
+// Granting a consequential scope requires the creator key. REVOKING never
+// does — losing a credential must never leave you unable to shut a door.
+export async function setAuthority(
+	db: D1Database,
+	scope: string,
+	granted: boolean,
+	creator = false,
+): Promise<Authority | { error: string; needsKey?: boolean }> {
 	const row = await db.prepare("SELECT scope FROM authority WHERE scope = ?").bind(scope).first<{ scope: string }>();
 	if (!row) return { error: `unknown scope: ${scope}` };
+	if (granted && isGuarded(scope) && !creator) {
+		return { error: `granting "${scope}" requires the creator key. ${KEY_MISSING_NOTE}`, needsKey: true };
+	}
 	await db.prepare("UPDATE authority SET granted = ?, updated_at = CURRENT_TIMESTAMP WHERE scope = ?").bind(granted ? 1 : 0, scope).run();
 	const all = await getAuthority(db);
 	return all.find((a) => a.scope === scope)!;
@@ -304,7 +315,11 @@ export function route(order: string): Capability | null {
 }
 
 // Execute a plain-English order: route it, check the grant, run it, log it.
-export async function command(db: D1Database, env: unknown, order: string): Promise<CommandResult> {
+//
+// `creator` says whether this request carried the creator key. An order whose
+// capability sits behind a guarded scope needs it — otherwise the authority
+// ledger is only as strong as the open endpoint that writes to it.
+export async function command(db: D1Database, env: unknown, order: string, creator = false): Promise<CommandResult> {
 	const cap = route(order);
 	if (!cap) {
 		const out: CommandResult = {
@@ -313,6 +328,19 @@ export async function command(db: D1Database, env: unknown, order: string): Prom
 			scope: null,
 			status: "unrouted",
 			result: `No capability matches that order. Lumi can: ${CAPABILITIES.map((c) => c.id).join(", ")}.`,
+		};
+		await logCommand(db, out);
+		return out;
+	}
+
+	// The grant says Lumi MAY. The key says this caller may ask her to.
+	if (isGuarded(cap.scope) && !creator) {
+		const out: CommandResult = {
+			order,
+			capability: cap.id,
+			scope: cap.scope,
+			status: "refused",
+			result: `"${cap.id}" acts under the ${cap.scope.toUpperCase()} scope, which only the creator can invoke. ${KEY_MISSING_NOTE}`,
 		};
 		await logCommand(db, out);
 		return out;

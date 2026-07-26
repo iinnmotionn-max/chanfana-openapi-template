@@ -9,6 +9,22 @@
 # In production these are Worker secrets, not this file:
 #     npx wrangler secret put ANTHROPIC_API_KEY
 
+# --- The control-plane lock (set this before you deploy) ---
+# The authority ledger says what Lumi MAY do. This key says who may ask her.
+# Without it, NOBODY — including you — can grant spend / publish / command /
+# machine, or issue an order that needs one. Reading, trading, auditing and
+# sweeping stay open, so the cockpit works out of the box.
+#
+# It matters most the moment you deploy: a Worker URL is not a secret, and
+# without this key anyone who finds yours could grant themselves the machine
+# scope and queue commands for your computer.
+#
+#     npx wrangler secret put CREATOR_KEY
+#
+# The cockpit asks for it with the 🔑 button and keeps it in that browser tab
+# only (sessionStorage) — never on disk, never in the Databank.
+CREATOR_KEY=choose-a-long-random-string
+
 # --- Models Lumi commands (Orchestrator) ---
 # Claude, for counsel and the council. https://console.claude.com
 ANTHROPIC_API_KEY=sk-ant-...

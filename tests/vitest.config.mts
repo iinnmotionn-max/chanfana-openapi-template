@@ -34,6 +34,9 @@ export default defineWorkersConfig({
 						// recorded. Tests assert that overlap actually works.
 						LOCAL_AGENT_SECRET_PREVIOUS: "old-agent-secret",
 						RP_SHARED_SECRET_PREVIOUS: "old-rp-secret",
+						// The control-plane lock. Bound so tests can exercise BOTH
+						// sides: with the key, and (by omitting the header) without.
+						CREATOR_KEY: "test-creator-key",
 					},
 				},
 			},

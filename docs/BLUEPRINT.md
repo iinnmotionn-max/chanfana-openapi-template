@@ -181,6 +181,7 @@ src/engine/            The colony's brains:
   local.ts           The machine-bridge queue (local_tasks): queue → claim → result
   secrets.ts         Constant-time secret comparison (no timing oracle)
   ratelimit.ts       Failure lockouts + call caps per bridge; Shield reads it
+  creator.ts         The control-plane lock: which scopes need CREATOR_KEY
   callers.ts         Who walks through each inbound bridge; an unfamiliar
                        caller is surfaced once and answered by trusting it
   rotation.ts        Two-secret overlap window (KEY / KEY_PREVIOUS) so a bridge
@@ -204,10 +205,10 @@ roblox/                InMotion RP kit: server-side Luau (AetherBridge +
                        Paychecks) that pays Roblox city players conserved
                        AETHER through POST /rp/grant (see roblox/README.md)
 scripts/               dev.sh (local) + golive.sh (Cloudflare deploy)
-tests/integration/     21 suites, 157 tests: seed→trade→learn→evolve; audit→
+tests/integration/     22 suites, 167 tests: seed→trade→learn→evolve; audit→
                        sweep→check-in; aether, wallet, defi, shield, growth(x),
                        buildplan, freshness, rp, local, orchestrator, command,
-                       autonomy, authority-posture, ratelimit, rotation, appintegrity, callers
+                       autonomy, authority-posture, ratelimit, rotation, appintegrity, callers, creator
 ```
 
 ## The flow (how the agents hand off to each other)
@@ -260,6 +261,7 @@ Full list is auto-documented at `GET /` (OpenAPI). Grouped by realm/subsystem:
 | **Integrity** | `GET /integrity` · `POST /integrity/scan` | The structural self-check — 9 checks across schema / wiring / referential / value / config, scored 0–100. Catches the failure class nothing else does: code that has drifted from the database and ships green anyway (a shadowed command trigger, a scope that can never be granted, a realm key nothing renders). Every failure carries the remedy, not just the diagnosis. Rides along in `/analytics/overview`, and Lumi can run it herself — "self check". **Runs unattended on every pulse** (hourly on the cron, and on `POST /lumi/pulse`), speaking only on a state change: a break is restated every pulse until fixed, a recovery is announced once, and a healthy system stays silent — an hourly "still fine" trains you to ignore the one that isn't. The pass/fail history is recorded either way. |
 | **Growth** | `GET /growth` `/growth/posts` `/growth/leads` `/growth/deals` `/growth/connectors` `/growth/analytics` · `POST /growth/{post,campaign,lead,scout,connect,deal}` … | Content, campaigns, leads, connectors, deals |
 | **InMotion RP** | `POST /rp/grant` `/rp/spend` · `GET /rp/player/:userId` | Roblox city bridge: players earn (treasury→player) and spend (player→treasury) conserved AETHER; secret-gated via `RP_SHARED_SECRET`, off until set |
+| **Control plane** | `CREATOR_KEY` guards `POST /command` + `PATCH /command/authority` | The authority ledger says what Lumi *may* do; this key says *who may ask her*. Observe/operate (read, trade, audit, sweep, study) stay open so a fresh checkout is usable. **Granting** spend / publish / command / machine — and issuing any order under one — requires the key. **Revoking never does:** losing a credential must never leave you unable to shut a door. With no key set, the consequential half is unavailable to everyone rather than open to everyone; Shield says so on the security panel. Key lives in the cockpit's sessionStorage only, never on disk or in the Databank. |
 | **Total Command** | `GET /command` · `POST /command` · `PATCH /command/authority` | One bar, all control: a plain-English order routes deterministically to one of **15** registered capabilities across every realm, is checked against the **authority ledger** — 6 scopes, `observe`/`operate` granted by default, `spend`/`publish`/`command`/`machine` revoked until the creator grants them — then runs for real and is logged. Boundary stated in-product: the Worker itself has no filesystem/shell/OS, so it cannot touch the creator's computer; the only path to the machine is the `machine` capability, which queues work for the local agent the creator runs themselves (see Local Agent). |
 | **Local Agent** | `GET /local` · `POST /local/next` `/local/result` | Lumi's hands on the creator's machine. She queues a task (needs the `machine` grant); `agent/lumi-agent.mjs`, run by the creator on their own computer, claims it and decides whether to run it — allowlist, no shell, per-task confirmation, sandboxed workdir. The Worker never executes anything; the machine always holds the veto. Secret-gated with `LOCAL_AGENT_SECRET`. |
 | **Bridge hardening** | applies to `/rp/*` and `/local/*` · `GET /bridges` · `POST /bridges/trust` | Both inbound bridges share one gate, covering the three ways a shared secret goes wrong. **Guessed** → constant-time comparison (`secrets.ts`) plus a failure lockout that refuses even the *correct* secret while it holds, and a per-bridge call cap (`ratelimit.ts`). **Leaked** → a rotation window (`rotation.ts`): each bridge accepts `KEY` **and** `KEY_PREVIOUS`, so a compromised secret is replaced with zero downtime, and every call on the outgoing key is recorded so the window can be closed on evidence. **Copied** → caller identity (`callers.ts`): every authenticated call records who made it, the first caller on a bridge becomes the baseline, and the next unfamiliar one raises a question Shield asks once and you answer by trusting it. All three cost posture score while open. **Stated limit:** caller names are self-reported, so a thief holding the secret can claim a name you trust — it raises the cost of quiet misuse, it is not a second factor. |

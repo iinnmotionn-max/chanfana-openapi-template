@@ -53,13 +53,22 @@ export async function completeTask(
 	status: "done" | "failed" | "refused",
 	result: string,
 ): Promise<LocalTask | { error: string }> {
+	// Only a CLAIMED task can be completed. Without this the same id could be
+	// reported twice — overwriting a real outcome with a later one — or a task
+	// still sitting in the queue could be marked done by something that never
+	// ran it, leaving a command that appears executed and never was.
+	const existing = await db.prepare("SELECT status FROM local_tasks WHERE id = ?").bind(id).first<{ status: string }>();
+	if (!existing) return { error: `unknown task: ${id}` };
+	if (existing.status !== "claimed") {
+		return { error: `task ${id} is ${existing.status}, not claimed — only a claimed task can report an outcome` };
+	}
 	const row = await db
 		.prepare(
-			"UPDATE local_tasks SET status = ?, result = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? RETURNING id, task, status, result, host, created_at",
+			"UPDATE local_tasks SET status = ?, result = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'claimed' RETURNING id, task, status, result, host, created_at",
 		)
 		.bind(status, result.slice(0, 4000), id)
 		.first<LocalTask>();
-	if (!row) return { error: `unknown task: ${id}` };
+	if (!row) return { error: `task ${id} was completed by someone else first` };
 	return row;
 }
 
