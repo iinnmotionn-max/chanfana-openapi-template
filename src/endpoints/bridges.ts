@@ -3,6 +3,7 @@
 import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
+import { requireCreator } from "../engine/creator";
 import { callerRoster, setCallerTrust } from "../engine/callers";
 import { rotationStatus } from "../engine/rotation";
 
@@ -51,6 +52,9 @@ export class BridgeTrust extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const res = await setCallerTrust(c.env.DB, body.bridge, body.caller, body.trusted);
 		if ("error" in res) {

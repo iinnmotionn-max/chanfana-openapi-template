@@ -49,6 +49,33 @@ export function isCreator(env: unknown, provided: string): boolean {
 	return secretsMatch(provided || "", key);
 }
 
+// The same lock, for endpoints that reach the same power WITHOUT going through
+// the command bar. Locking `POST /command {order:"pay lumi 250"}` while leaving
+// `POST /aether/transfer` open would be theatre: the scope model would describe
+// a boundary that anyone could step around by picking a different URL.
+//
+// Returns a Response to send back, or null to proceed.
+export function requireCreator(c: {
+	env: unknown;
+	req: { header: (k: string) => string | undefined };
+	json: (body: unknown, status?: number) => Response;
+}): Response | null {
+	const provided = c.req.header("X-Creator-Key") || "";
+	if (!creatorKeySet(c.env)) {
+		return c.json(
+			{ success: false, errors: [{ code: 5033, message: `This endpoint moves value or speaks outward. ${KEY_MISSING_NOTE}` }] },
+			503,
+		);
+	}
+	if (!isCreator(c.env, provided)) {
+		return c.json(
+			{ success: false, errors: [{ code: 4014, message: provided ? KEY_WRONG_NOTE : "This endpoint needs the X-Creator-Key header." }] },
+			401,
+		);
+	}
+	return null;
+}
+
 export const KEY_MISSING_NOTE =
 	"This action needs the creator key. Set CREATOR_KEY on the Worker (npx wrangler secret put CREATOR_KEY) and send it as the X-Creator-Key header. Until then the system will not spend, publish, act unattended, or reach a machine — for anyone, including you.";
 

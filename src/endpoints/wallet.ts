@@ -6,6 +6,7 @@
 import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
+import { requireCreator } from "../engine/creator";
 import { createWallet, ensureAetherWallet, linkSui, sendAether, walletList, walletOverview } from "../engine/wallet";
 
 export class WalletList extends OpenAPIRoute {
@@ -96,6 +97,9 @@ export class WalletSend extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const result = await sendAether(c.env.DB, body.from, body.to, body.amount, body.memo);
 		if ("error" in result) return c.json({ success: false, errors: [{ code: 4009, message: result.error }] }, 400);

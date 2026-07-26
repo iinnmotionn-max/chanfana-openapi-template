@@ -3,6 +3,7 @@
 import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
+import { requireCreator } from "../engine/creator";
 import { auditSupply, reward, spend, tokenOverview, transfer } from "../engine/token";
 import { suiChainStatus } from "../engine/sui";
 
@@ -73,6 +74,9 @@ export class AetherTransfer extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const result = await transfer(c.env.DB, body.from, body.to, body.amount, "transfer", body.memo);
 		if ("error" in result) return c.json({ success: false, errors: [{ code: 4009, message: result.error }] }, 400);
@@ -93,6 +97,9 @@ export class AetherReward extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		await reward(c.env.DB, body.to, body.amount, body.reason);
 		return { success: true, result: await tokenOverview(c.env.DB) };
@@ -115,6 +122,9 @@ export class AetherSpend extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const result = await spend(c.env.DB, body.from, body.amount, body.reason);
 		if ("error" in result) return c.json({ success: false, errors: [{ code: 4009, message: result.error }] }, 400);

@@ -1124,7 +1124,7 @@ function renderJarvis(cmd, integrity, callers) {
     cl.querySelectorAll(".trust").forEach(el => {
       el.onclick = async () => {
         await fetch("/bridges/trust", { method: "POST", cache: "no-store",
-          headers: { "Content-Type": "application/json" },
+          headers: ctlHeaders(),
           body: JSON.stringify({ bridge: el.dataset.b, caller: el.dataset.c, trusted: true }) });
         await load();
       };
@@ -1840,7 +1840,15 @@ function esc(s) {
 async function act(btn, path, body) {
   btn.disabled = true;
   try {
-    await fetch(path, { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : "{}" });
+    const r = await fetch(path, { method: "POST", cache: "no-store", headers: ctlHeaders(), body: body ? JSON.stringify(body) : "{}" });
+    if (!r.ok) {
+      // These used to fail silently. A refused action that looks like a
+      // successful one is worse than an error message.
+      const e = await r.json().catch(() => null);
+      const msg = (e && e.errors && e.errors[0] && e.errors[0].message) || ("HTTP " + r.status);
+      $("status").textContent = "refused · " + msg;
+      return;
+    }
     await load();
   } finally { btn.disabled = false; }
 }
@@ -1891,7 +1899,7 @@ async function api(method, path, body) {
   const res = await fetch(url, {
     method: method,
     cache: "no-store",
-    headers: { "Content-Type": "application/json" },
+    headers: ctlHeaders(),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));

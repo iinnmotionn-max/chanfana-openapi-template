@@ -3,6 +3,7 @@
 import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
+import { requireCreator } from "../engine/creator";
 import {
 	advanceDeal,
 	campaignAnalytics,
@@ -39,6 +40,9 @@ export class ConnectorConnect extends OpenAPIRoute {
 		},
 	};
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const r = await connect(c.env.DB, body.platform, body.handle);
 		if ("error" in r) return c.json({ success: false, errors: [{ code: 4004, message: r.error }] }, 400);
@@ -57,6 +61,9 @@ export class PostPublish extends OpenAPIRoute {
 		},
 	};
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { params } = await this.getValidatedData<typeof this.schema>();
 		const r = await publishPost(c.env.DB, c.env, params.id);
 		if ("error" in r) return c.json({ success: false, errors: [{ code: 4041, message: r.error }] }, 404);

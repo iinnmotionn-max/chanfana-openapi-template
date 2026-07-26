@@ -1,6 +1,12 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
+// Moving value and publishing outward now need the creator key — locking the
+// command bar while leaving these endpoints open would only have moved the
+// hole. These suites test the mechanics, so they speak as the creator;
+// creator.test.ts is where the lock itself is proven.
+const CREATOR_KEY = "test-creator-key";
+
 // The third way a shared secret goes wrong. Guessing is caught by the lockout,
 // a known leak is handled by rotation — but a COPIED secret produces traffic
 // identical to yours, except from a machine you have never seen.
@@ -11,7 +17,7 @@ const RP = "test-rp-secret";
 async function post(path: string, body: unknown) {
 	const res = await SELF.fetch(`http://local.test${path}`, {
 		method: "POST",
-		headers: { "Content-Type": "application/json" },
+		headers: { "Content-Type": "application/json", "X-Creator-Key": CREATOR_KEY },
 		body: JSON.stringify(body),
 	});
 	return { status: res.status, body: (await res.json()) as any };

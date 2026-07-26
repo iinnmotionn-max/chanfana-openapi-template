@@ -85,6 +85,53 @@ describe("The control plane has a lock — the ledger is not self-serve", () => 
 		expect(limited, "the 60/min command cap actually bites").toBe(true);
 	});
 
+	it("closes the SIDE DOORS — value cannot move by picking a different URL", async () => {
+		// Locking `POST /command {order: "pay lumi 250"}` while leaving
+		// /aether/transfer open would be theatre: the scope model would describe
+		// a boundary anyone could step around. Every route that moves value or
+		// speaks outward must refuse an anonymous caller.
+		const sideDoors: [string, unknown][] = [
+			["/aether/transfer", { from: "treasury", to: "lumi", amount: 100 }],
+			["/aether/reward", { to: "lumi", amount: 100 }],
+			["/aether/spend", { from: "lumi", amount: 10 }],
+			["/wallet/send", { from: "treasury", to: "lumi", amount: 100 }],
+			["/defi/swap", { owner: "lumi", direction: "aether_in", amountIn: 10 }],
+			["/defi/pool/add", { owner: "lumi", aether: 10, quote: 10 }],
+			["/defi/pool/remove", { owner: "lumi", shares: 1 }],
+			["/defi/vault/deposit", { owner: "lumi", amount: 10 }],
+			["/defi/vault/withdraw", { owner: "lumi", amount: 10 }],
+			["/defi/borrow", { owner: "lumi", collateral: 100, borrow: 10 }],
+			["/defi/repay", { owner: "lumi", amount: 10 }],
+			["/growth/connect", { platform: "x", token: "sneaky" }],
+			["/growth/post/1/publish", {}],
+			["/bridges/trust", { bridge: "local agent", caller: "attacker", trusted: true }],
+		];
+		for (const [path, body] of sideDoors) {
+			const res = await send("POST", path, body);
+			expect(res.status, `${path} must refuse an anonymous caller`).toBe(401);
+		}
+
+		// And nothing moved — refused, not partially applied. Treasury still
+		// holds its genesis balance, and the ledger still reconciles.
+		const t = ((await (await SELF.fetch("http://local.test/aether")).json()) as any).result;
+		expect(t.reconciled).toBe(true);
+		expect(t.treasury).toBe(800000);
+	});
+
+	it("the same doors open with the key", async () => {
+		const move = await send("POST", "/aether/transfer", { from: "treasury", to: "lumi", amount: 100 }, KEY);
+		expect(move.status).toBe(200);
+		const send1 = await send("POST", "/wallet/send", { from: "treasury", to: "lumi", amount: 50 }, KEY);
+		expect(send1.status).toBe(200);
+	});
+
+	it("reading is never gated — you can always see what is happening", async () => {
+		for (const p of ["/aether", "/wallet", "/defi", "/bridges", "/shield", "/integrity", "/command", "/analytics/overview"]) {
+			const res = await SELF.fetch(`http://local.test${p}`);
+			expect(res.status, p).toBe(200);
+		}
+	});
+
 	it("Shield reports the control plane's state on the security panel", async () => {
 		const p = ((await (await SELF.fetch("http://local.test/shield")).json()) as any).result.posture;
 		expect(p.rulesetVersion).toBe(7);

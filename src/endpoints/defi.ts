@@ -6,6 +6,7 @@
 import { contentJson, OpenAPIRoute } from "chanfana";
 import { z } from "zod";
 import { AppContext } from "../types";
+import { requireCreator } from "../engine/creator";
 import {
 	addLiquidity,
 	borrow,
@@ -56,6 +57,9 @@ export class DefiAddLiquidity extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const result = await addLiquidity(c.env.DB, body.owner, body.aether, body.quote);
 		if ("error" in result) return fail(c, result.error);
@@ -82,6 +86,9 @@ export class DefiRemoveLiquidity extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const result = await removeLiquidity(c.env.DB, body.owner, body.lp);
 		if ("error" in result) return fail(c, result.error);
@@ -109,6 +116,9 @@ export class DefiSwap extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const result = await swap(c.env.DB, body.owner, body.direction, body.amountIn);
 		if ("error" in result) return fail(c, result.error);
@@ -135,6 +145,9 @@ export class DefiVaultDeposit extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const result = await vaultDeposit(c.env.DB, body.owner, body.amount);
 		if ("error" in result) return fail(c, result.error);
@@ -161,6 +174,9 @@ export class DefiVaultWithdraw extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const result = await vaultWithdraw(c.env.DB, body.owner, body.amount);
 		if ("error" in result) return fail(c, result.error);
@@ -188,6 +204,9 @@ export class DefiBorrow extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const result = await borrow(c.env.DB, body.owner, body.collateral, body.borrow);
 		if ("error" in result) return fail(c, result.error);
@@ -213,6 +232,9 @@ export class DefiRepay extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
+		const denied = requireCreator(c);
+		if (denied) return denied;
+
 		const { body } = await this.getValidatedData<typeof this.schema>();
 		const result = await repay(c.env.DB, body.loanId);
 		if ("error" in result) return fail(c, result.error);
