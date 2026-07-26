@@ -14,6 +14,7 @@ import { shieldOverview } from "../engine/shield";
 import { auditApp } from "../engine/appintegrity";
 import { callerRoster } from "../engine/callers";
 import { assessReadiness } from "../engine/readiness";
+import { panelSources } from "../engine/sources";
 import { walletList } from "../engine/wallet";
 import { defiOverview } from "../engine/defi";
 import { growthOverview } from "../engine/growth";
@@ -114,6 +115,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 		const integrity = await auditApp(db, c.env);
 		const bridgeCallers = await callerRoster(db);
 		const readiness = assessReadiness(c.env);
+		const sources = await panelSources(db, c.env);
 		const rp = {
 			citizens: rpCitizens?.n ?? 0,
 			cityBalance: Number((rpCitizens?.bal ?? 0).toFixed(2)),
@@ -180,6 +182,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				integrity,
 				bridgeCallers,
 				readiness,
+				sources,
 			},
 		};
 	}

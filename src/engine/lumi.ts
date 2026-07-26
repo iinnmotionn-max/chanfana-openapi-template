@@ -364,6 +364,14 @@ export async function lumiPulse(db: D1Database): Promise<PulseResult> {
 		decisions.push(`skipped learning — only ${cycle.closed} closed trades this pulse (needs 10)`);
 	}
 
+	// Reach for the real world every pulse. Until this ran on a schedule, live
+	// prices only got banked when the initiative happened to pick that quest —
+	// so a deployed system could run for days on a simulated tape while looking
+	// exactly like one trading real data. It fails quietly and often on purpose:
+	// no key, free endpoint, and a miss is a "try again next hour", not an error.
+	const scout = await scoutMarket(db).catch((e) => ({ stored: false, error: String(e) }) as Awaited<ReturnType<typeof scoutMarket>>);
+	decisions.push(scout.stored ? "banked a real market observation" : `no live prices this pulse (${scout.error ?? "unavailable"}) — the tape stays simulated and says so`);
+
 	// Guard the money and the house.
 	const a0 = Date.now();
 	const audit = await auditInvest(db);

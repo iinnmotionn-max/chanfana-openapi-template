@@ -547,6 +547,15 @@ export const dashHtml = `<!doctype html>
   .rdy-next { font-size: 11px; color: var(--ink-2); margin-top: 8px; }
   .rdy-next code { background: var(--page); padding: 2px 7px; border-radius: 5px; color: var(--series-4);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; }
+  /* Source badges — a simulated number must never look like a real one. */
+  .src { font-size: 9px; text-transform: uppercase; letter-spacing: 0.7px; padding: 2px 8px;
+    border-radius: 999px; border: 1px solid var(--line); color: var(--muted); margin-left: 9px;
+    vertical-align: middle; font-weight: 700; cursor: help; white-space: nowrap; }
+  .src.live { border-color: var(--good); color: var(--good); }
+  .src.ledger { border-color: var(--series-2); color: var(--series-2); }
+  .src.measured { border-color: var(--series-4); color: var(--series-4); }
+  .src.sim { border-color: var(--warning); color: var(--warning); }
+  .src.offline { border-color: var(--line); color: var(--muted); }
   .integ-breaks { margin-top: 10px; }
   .integ-break { font-size: 11.5px; border-left: 2px solid var(--critical); padding: 6px 10px;
     background: var(--page); border-radius: 0 7px 7px 0; margin-top: 5px; }
@@ -748,7 +757,7 @@ export const dashHtml = `<!doctype html>
 
 <div class="grid2b">
   <div class="card">
-    <h2>LUMI — evolution</h2>
+    <h2>LUMI — evolution<span class="src" data-src="lumi"></span></h2>
     <div id="lumi-panel"></div>
   </div>
   <div class="card">
@@ -758,7 +767,7 @@ export const dashHtml = `<!doctype html>
 </div>
 
 <div class="card" id="orch-card">
-  <h2><span class="orch-crown">◈</span> ORCHESTRATOR — Lumi commands every intelligence</h2>
+  <h2><span class="orch-crown">◈</span> ORCHESTRATOR — Lumi commands every intelligence<span class="src" data-src="orchestrator"></span></h2>
   <div class="jarvis">
     <div class="jv-bar">
       <span class="jv-sig"><span class="jv-ring"></span><span class="jv-dot"></span></span>
@@ -798,12 +807,12 @@ export const dashHtml = `<!doctype html>
 </div>
 
 <div class="card wallet-card" id="wallet-card">
-  <h2>WALLET — your AETHER, self-custody &amp; on Sui</h2>
+  <h2>WALLET — your AETHER, self-custody &amp; on Sui<span class="src" data-src="wallet"></span></h2>
   <div id="wallet-panel"></div>
 </div>
 
 <div class="card" id="aether-card">
-  <h2>AETHER TOKEN — the colony's AI-credit currency</h2>
+  <h2>AETHER TOKEN — the colony's AI-credit currency<span class="src" data-src="aether"></span></h2>
   <div id="aether-panel"></div>
 </div>
 
@@ -867,23 +876,23 @@ export const dashHtml = `<!doctype html>
 </div>
 
 <div class="card" id="defi-card">
-  <h2>DEFI — AETHER liquidity · pool · vaults · lending</h2>
+  <h2>DEFI — AETHER liquidity · pool · vaults · lending<span class="src" data-src="defi"></span></h2>
   <div id="defi-panel"></div>
 </div>
 
 <div class="section-h">GAMING REALM — InMotion RP · Roblox city</div>
 <div class="card" id="rp-card">
-  <h2>INMOTION RP — citizens · paychecks · shops, all on the AETHER ledger</h2>
+  <h2>INMOTION RP — citizens · paychecks · shops, all on the AETHER ledger<span class="src" data-src="rp"></span></h2>
   <div id="rp-panel"></div>
 </div>
 
 <div class="card" id="growth-card">
-  <h2>GROWTH — PR · content · campaigns · lead-gen</h2>
+  <h2>GROWTH — PR · content · campaigns · lead-gen<span class="src" data-src="growth"></span></h2>
   <div id="growth-panel"></div>
 </div>
 
 <div class="card shield-card" id="shield-card">
-  <h2>SHIELD — web3 security · red-team · decentralization · privacy-first KYC</h2>
+  <h2>SHIELD — web3 security · red-team · decentralization · privacy-first KYC<span class="src" data-src="shield"></span></h2>
   <div id="shield-panel"></div>
 </div>
 
@@ -891,20 +900,20 @@ export const dashHtml = `<!doctype html>
 <div class="tiles" id="tiles"></div>
 
 <div class="card" id="risk-card">
-  <h2>RISK GATES — capital protection &amp; live feed</h2>
+  <h2>RISK GATES — capital protection &amp; live feed<span class="src" data-src="market"></span></h2>
   <div id="risk-panel"></div>
 </div>
 
 <div class="grid2">
   <div class="card">
-    <h2>COLONY EQUITY — paper capital over market ticks</h2>
+    <h2>COLONY EQUITY — paper capital over market ticks<span class="src" data-src="trading"></span></h2>
     <div class="chart-wrap">
       <svg id="equity-chart" width="100%" height="240" viewBox="0 0 640 240" preserveAspectRatio="none" role="img" aria-label="Colony equity line chart"></svg>
       <div class="tooltip" id="equity-tip"></div>
     </div>
   </div>
   <div class="card">
-    <h2>WIN RATE BY STRATEGY — closed trades only</h2>
+    <h2>WIN RATE BY STRATEGY — closed trades only<span class="src" data-src="trading"></span></h2>
     <div class="chart-wrap">
       <svg id="winrate-chart" width="100%" height="240" viewBox="0 0 420 240" role="img" aria-label="Win rate by strategy bar chart"></svg>
       <div class="tooltip" id="winrate-tip"></div>
@@ -914,7 +923,7 @@ export const dashHtml = `<!doctype html>
 
 <div class="grid2b">
   <div class="card">
-    <h2>BOTS — sized by soul, compounding by results</h2>
+    <h2>BOTS — sized by soul, compounding by results<span class="src" data-src="trading"></span></h2>
     <div style="overflow-x:auto"><table id="bots-table">
       <thead><tr><th>Bot</th><th>Strategy</th><th>Balance</th><th>PnL</th><th>W/L</th><th>Win %</th><th>Status</th></tr></thead>
       <tbody></tbody>
@@ -928,7 +937,7 @@ export const dashHtml = `<!doctype html>
 
 <div class="grid2b">
   <div class="card">
-    <h2>STRATEGIES — lineage &amp; evidence</h2>
+    <h2>STRATEGIES — lineage &amp; evidence<span class="src" data-src="trading"></span></h2>
     <div style="overflow-x:auto"><table id="strategies-table">
       <thead><tr><th>Strategy</th><th>Gen</th><th>Trades</th><th>Win %</th><th>Net PnL</th><th>Status</th></tr></thead>
       <tbody></tbody>
@@ -943,7 +952,7 @@ export const dashHtml = `<!doctype html>
 <div class="section-h">GUARDIAN · TECH · WELLNESS</div>
 <div class="grid3">
   <div class="card">
-    <h2>GUARDIAN — protection checks</h2>
+    <h2>GUARDIAN — protection checks<span class="src" data-src="guardian"></span></h2>
     <div class="checks" id="checks"></div>
   </div>
   <div class="card">
@@ -1021,6 +1030,7 @@ function render(d) {
   renderOrchestrator(d.orchestrator || null);
   renderChamber(lastCouncil);
   renderJarvis(d.command || null, d.integrity || null, d.bridgeCallers || [], d.readiness || null);
+  renderSources(d.sources || []);
   renderMachine(d.local || null);
   firstPaint = false;
 }
@@ -1073,6 +1083,21 @@ function renderMachine(m) {
       (m.pending ? '<span class="pend">' + m.pending + ' pending</span>' : '') + '</div>' +
     '<div class="mc-note">' + esc(m.note) + '</div>' +
     (tasks ? '<div class="mc-tasks">' + tasks + '</div>' : '');
+}
+
+// Stamp every panel with where its numbers come from. A panel with no entry
+// gets nothing rather than a guess — an unlabelled panel is better than a
+// wrong label.
+function renderSources(sources) {
+  const by = {};
+  (sources || []).forEach(s => { by[s.panel] = s; });
+  document.querySelectorAll(".src[data-src]").forEach(el => {
+    const s = by[el.dataset.src];
+    if (!s) { el.textContent = ""; el.className = "src"; return; }
+    el.textContent = s.label;
+    el.className = "src " + s.kind;
+    el.title = s.detail;
+  });
 }
 
 // JARVIS — grants, boundary, structural integrity, and the order transcript.
@@ -1149,14 +1174,18 @@ function renderJarvis(cmd, integrity, callers, readiness) {
   if (rd && readiness) {
     rd.innerHTML = '<span class="lbl">Wired</span>' + (readiness.items || []).map(i =>
       '<span class="rdy ' + (i.configured ? "on" : (i.need === "required" ? "req" : "")) + '" title="' +
-      esc(i.unlocks) + (i.configured ? "" : "\n\n" + esc(i.command)) + '">' +
+      esc(i.unlocks) + (i.configured ? "" : " — " + esc(i.command)) + '">' +
       (i.configured ? "✓ " : (i.need === "required" ? "! " : "")) + esc(i.name) + '</span>'
     ).join("");
     if (rn) {
-      const cmd2 = (readiness.nextStep || "").match(/npx wrangler secret put \\S+|bash \\S+/);
-      rn.innerHTML = readiness.deployable && readiness.configured === readiness.total
+      // The single next step, with its command set apart so it can be copied.
+      const step = readiness.nextStep || "";
+      const cut = step.indexOf("npx wrangler") >= 0 ? step.indexOf("npx wrangler") : step.indexOf("bash ");
+      rn.innerHTML = readiness.configured === readiness.total
         ? ""
-        : esc(readiness.nextStep) + (cmd2 ? "" : "");
+        : cut > 0
+          ? esc(step.slice(0, cut)) + '<code>' + esc(step.slice(cut)) + '</code>'
+          : esc(step);
     }
   }
 
