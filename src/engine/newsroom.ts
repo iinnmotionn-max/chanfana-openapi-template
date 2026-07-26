@@ -24,6 +24,8 @@
 //      DRAFTS until the creator has a connector configured, so nothing reaches
 //      an audience without them.
 
+import { writeWithClaude } from "./copywriter";
+
 export type Platform = "x" | "linkedin" | "instagram" | "blog";
 
 export interface NewsEvent {
@@ -231,7 +233,7 @@ const ROTATION: Platform[] = ["x", "linkedin", "instagram", "blog"];
 export interface NewsroomRun {
 	drafted: number;
 	skipped: number;
-	posts: { platform: Platform; title: string; key: string }[];
+	posts: { platform: Platform; title: string; key: string; writer: string; note: string }[];
 	note: string;
 }
 
@@ -256,15 +258,18 @@ export async function runNewsroom(db: D1Database, env: unknown, max = 3): Promis
 		}
 		const platform = ROTATION[slot % ROTATION.length];
 		slot++;
-		const copy = writePost(e, platform);
+		const base = writePost(e, platform);
+		// Claude gets to choose every word and not a single fact — its draft is
+		// rejected outright if it contains a figure the facts do not.
+		const written = await writeWithClaude(e, platform, env, { title: base.title, body: base.body });
 		await db
 			.prepare(
-				`INSERT INTO posts (platform, kind, title, body, media_prompt, status, event_key)
-				 VALUES (?, ?, ?, ?, ?, 'draft', ?)`,
+				`INSERT INTO posts (platform, kind, title, body, media_prompt, status, event_key, writer, writer_note)
+				 VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?)`,
 			)
-			.bind(platform, e.kind, copy.title, copy.body, copy.media_prompt, e.key)
+			.bind(platform, e.kind, written.title, written.body, base.media_prompt, e.key, written.writer, written.note)
 			.run();
-		posts.push({ platform, title: copy.title, key: e.key });
+		posts.push({ platform, title: written.title, key: e.key, writer: written.writer, note: written.note });
 	}
 
 	if (posts.length > 0) {
