@@ -37,10 +37,18 @@ function isSet(env: unknown, key: string): boolean {
 export async function panelSources(db: D1Database, env: unknown): Promise<PanelSource[]> {
 	// How much real market data has actually been banked, and is any symbol
 	// replaying it? This is the one place where "live" is earned, not assumed.
-	const [feeds, ticks] = await Promise.all([
+	// One parallel round for everything this function reads — it runs on the
+	// cockpit's 8-second poll, where serial round trips add up on remote D1.
+	const [feeds, ticks, rpRow, claimRow, cronRow] = await Promise.all([
 		db.prepare("SELECT symbol, feed FROM market_state").all<{ symbol: string; feed: string }>(),
 		db.prepare("SELECT COUNT(*) as n FROM live_ticks").first<{ n: number }>(),
+		db.prepare("SELECT COUNT(*) as n FROM checks WHERE name = 'rp-bridge'").first<{ n: number }>(),
+		db.prepare("SELECT COUNT(*) as n FROM local_tasks WHERE status != 'queued'").first<{ n: number }>(),
+		db
+			.prepare("SELECT (julianday('now') - julianday(created_at)) * 1440 AS mins FROM automation_runs WHERE source = 'cron' ORDER BY id DESC LIMIT 1")
+			.first<{ mins: number }>(),
 	]);
+	const counts = { rpCalls: rpRow?.n ?? 0, claimed: claimRow?.n ?? 0, lastCron: cronRow };
 	const liveSymbols = (feeds.results ?? []).filter((f) => f.feed === "live");
 	const banked = ticks?.n ?? 0;
 	// A symbol set to "live" with fewer than two observations replays a flat
@@ -93,7 +101,7 @@ export async function panelSources(db: D1Database, env: unknown): Promise<PanelS
 		publishing ? "A connector is live; published posts leave the system." : "Nothing leaves the system. Posts stay local drafts until X_TOKEN or LINKEDIN_TOKEN is set.",
 	);
 	const rp = isSet(env, "RP_SHARED_SECRET");
-	const rpCalls = rp ? ((await db.prepare("SELECT COUNT(*) as n FROM checks WHERE name = 'rp-bridge'").first<{ n: number }>())?.n ?? 0) : 0;
+	const rpCalls = counts.rpCalls;
 	add(
 		"rp",
 		rp && rpCalls > 0 ? "live" : "offline",
@@ -105,7 +113,7 @@ export async function panelSources(db: D1Database, env: unknown): Promise<PanelS
 				: "Bridge off — set RP_SHARED_SECRET and drop the kit into Studio.",
 	);
 	const agent = isSet(env, "LOCAL_AGENT_SECRET");
-	const claimed = agent ? ((await db.prepare("SELECT COUNT(*) as n FROM local_tasks WHERE status != 'queued'").first<{ n: number }>())?.n ?? 0) : 0;
+	const claimed = counts.claimed;
 	add(
 		"machine",
 		agent && claimed > 0 ? "live" : "offline",
@@ -115,9 +123,7 @@ export async function panelSources(db: D1Database, env: unknown): Promise<PanelS
 
 	// Automation gets a source too: the panel is only meaningful if you can see
 	// at a glance whether it is describing a live schedule or a dev machine.
-	const lastCron = await db
-		.prepare("SELECT (julianday('now') - julianday(created_at)) * 1440 AS mins FROM automation_runs WHERE source = 'cron' ORDER BY id DESC LIMIT 1")
-		.first<{ mins: number }>();
+	const lastCron = counts.lastCron;
 	add(
 		"automation",
 		lastCron ? (lastCron.mins <= 90 ? "live" : "offline") : "offline",

@@ -110,14 +110,22 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				)
 				.all(),
 		]);
-		const orchestrator = await orchestratorOverview(db, c.env);
-		const command = await commandOverview(db);
-		const local = await localOverview(db, c.env);
-		const integrity = await auditApp(db, c.env);
-		const bridgeCallers = await callerRoster(db);
-		const readiness = assessReadiness(c.env);
-		const sources = await panelSources(db, c.env);
-		const automation = await automationHealth(db);
+		// These seven are independent of each other, and this is the cockpit's
+		// hot path — polled every 8 seconds. Awaited one after another they cost
+		// seven serial round trips before any of their own queries even start.
+		// That is invisible on local D1 (a file) and expensive on remote D1,
+		// where every query is a network hop — which is exactly the environment
+		// this actually runs in.
+		const [orchestrator, command, local, integrity, bridgeCallers, sources, automation] = await Promise.all([
+			orchestratorOverview(db, c.env),
+			commandOverview(db),
+			localOverview(db, c.env),
+			auditApp(db, c.env),
+			callerRoster(db),
+			panelSources(db, c.env),
+			automationHealth(db),
+		]);
+		const readiness = assessReadiness(c.env); // pure env read, no I/O
 		const rp = {
 			citizens: rpCitizens?.n ?? 0,
 			cityBalance: Number((rpCitizens?.bal ?? 0).toFixed(2)),

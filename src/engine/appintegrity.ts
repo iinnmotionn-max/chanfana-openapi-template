@@ -69,6 +69,53 @@ export async function auditApp(db: D1Database, env: unknown): Promise<AppIntegri
 	const checks: AppCheck[] = [];
 	const tables = await tableNames(db);
 
+	// Everything below reads the database, and none of it depends on anything
+	// else below — only on the table list above. Awaited one at a time it was
+	// ten serial round trips on the cockpit's 8-second poll: free on local D1
+	// (a file), a real cost on remote D1 (a network hop each). One round now.
+	const has = (t: string) => tables.has(t);
+	const zero = Promise.resolve(0);
+	const [
+		authorityRows,
+		realmKeys,
+		reportRealms,
+		checkRealms,
+		orphanTrades,
+		orphanBots,
+		orphanLedger,
+		supply,
+		negativeAccounts,
+		negativeBots,
+		rpBridgeCalls,
+		agentClaims,
+	] = await Promise.all([
+		has("authority")
+			? db.prepare("SELECT scope FROM authority").all<{ scope: string }>().then((r) => r.results.map((x) => x.scope))
+			: Promise.resolve([] as string[]),
+		has("realms") ? db.prepare("SELECT key FROM realms").all<{ key: string }>().then((r) => r.results.map((x) => x.key)) : Promise.resolve([] as string[]),
+		has("reports")
+			? db.prepare("SELECT DISTINCT realm FROM reports WHERE realm IS NOT NULL").all<{ realm: string }>().then((r) => r.results.map((x) => x.realm))
+			: Promise.resolve([] as string[]),
+		has("checks")
+			? db.prepare("SELECT DISTINCT realm FROM checks WHERE realm IS NOT NULL").all<{ realm: string }>().then((r) => r.results.map((x) => x.realm))
+			: Promise.resolve([] as string[]),
+		has("trades") && has("bots") ? count(db, "SELECT COUNT(*) as n FROM trades WHERE bot_id NOT IN (SELECT id FROM bots)") : zero,
+		has("bots") && has("strategies") ? count(db, "SELECT COUNT(*) as n FROM bots WHERE strategy_id NOT IN (SELECT id FROM strategies)") : zero,
+		has("aether_ledger") && has("aether_accounts")
+			? count(
+					db,
+					`SELECT COUNT(*) as n FROM aether_ledger
+					 WHERE (from_owner NOT IN ('', 'genesis') AND from_owner NOT IN (SELECT owner FROM aether_accounts))
+					    OR (to_owner NOT IN ('', 'genesis') AND to_owner NOT IN (SELECT owner FROM aether_accounts))`,
+				)
+			: zero,
+		auditSupply(db),
+		has("aether_accounts") ? count(db, "SELECT COUNT(*) as n FROM aether_accounts WHERE balance < 0") : zero,
+		has("bots") ? count(db, "SELECT COUNT(*) as n FROM bots WHERE balance < 0") : zero,
+		has("checks") ? count(db, "SELECT COUNT(*) as n FROM checks WHERE name = 'rp-bridge'") : zero,
+		has("local_tasks") ? count(db, "SELECT COUNT(*) as n FROM local_tasks WHERE status != 'queued'") : zero,
+	]);
+
 	// --- SCHEMA: is every table the code depends on actually here? ---
 	const missing = REQUIRED_TABLES.filter((t) => !tables.has(t));
 	checks.push(
@@ -116,7 +163,7 @@ export async function auditApp(db: D1Database, env: unknown): Promise<AppIntegri
 	// A scope in code with no row can never be granted, so the capability behind
 	// it is dead. A row with no scope in code is a grant that authorizes nothing.
 	if (tables.has("authority")) {
-		const rows = (await db.prepare("SELECT scope FROM authority").all<{ scope: string }>()).results.map((r) => r.scope);
+		const rows = authorityRows;
 		const ungrantable = CODE_SCOPES.filter((s) => !rows.includes(s));
 		const orphanGrants = rows.filter((s) => !CODE_SCOPES.includes(s as Scope));
 		checks.push(
@@ -160,16 +207,8 @@ export async function auditApp(db: D1Database, env: unknown): Promise<AppIntegri
 	// The realms table is the authority here, not a list in this file. This
 	// check earned that design immediately: written against a hardcoded list, it
 	// failed on the first real database, and the list was what was wrong.
-	const knownRealms = new Set(
-		tables.has("realms") ? (await db.prepare("SELECT key FROM realms").all<{ key: string }>()).results.map((r) => r.key) : [],
-	);
-	const usedRealms = new Set<string>();
-	if (tables.has("reports")) {
-		for (const r of (await db.prepare("SELECT DISTINCT realm FROM reports WHERE realm IS NOT NULL").all<{ realm: string }>()).results) usedRealms.add(r.realm);
-	}
-	if (tables.has("checks")) {
-		for (const r of (await db.prepare("SELECT DISTINCT realm FROM checks WHERE realm IS NOT NULL").all<{ realm: string }>()).results) usedRealms.add(r.realm);
-	}
+	const knownRealms = new Set(realmKeys);
+	const usedRealms = new Set<string>([...reportRealms, ...checkRealms].filter(Boolean));
 	const strayRealms = [...usedRealms].filter((r) => r && !knownRealms.has(r));
 	checks.push(
 		strayRealms.length > 0
@@ -185,25 +224,11 @@ export async function auditApp(db: D1Database, env: unknown): Promise<AppIntegri
 
 	// --- REFERENTIAL: orphaned rows point at things that no longer exist ---
 	const orphans: string[] = [];
-	if (tables.has("trades") && tables.has("bots")) {
-		const n = await count(db, "SELECT COUNT(*) as n FROM trades WHERE bot_id NOT IN (SELECT id FROM bots)");
-		if (n > 0) orphans.push(`${n} trade(s) on a deleted bot`);
-	}
-	if (tables.has("bots") && tables.has("strategies")) {
-		const n = await count(db, "SELECT COUNT(*) as n FROM bots WHERE strategy_id NOT IN (SELECT id FROM strategies)");
-		if (n > 0) orphans.push(`${n} bot(s) running a deleted strategy`);
-	}
-	if (tables.has("aether_ledger") && tables.has("aether_accounts")) {
-		// 'genesis' is the one legitimate non-account counterparty: the origin of
-		// the fixed supply, which by construction has no balance to hold.
-		const n = await count(
-			db,
-			`SELECT COUNT(*) as n FROM aether_ledger
-			 WHERE (from_owner NOT IN ('', 'genesis') AND from_owner NOT IN (SELECT owner FROM aether_accounts))
-			    OR (to_owner NOT IN ('', 'genesis') AND to_owner NOT IN (SELECT owner FROM aether_accounts))`,
-		);
-		if (n > 0) orphans.push(`${n} ledger entr(ies) referencing a missing account`);
-	}
+	// 'genesis' is the one legitimate non-account counterparty in the ledger:
+	// the origin of the fixed supply, which by construction holds no balance.
+	if (orphanTrades > 0) orphans.push(`${orphanTrades} trade(s) on a deleted bot`);
+	if (orphanBots > 0) orphans.push(`${orphanBots} bot(s) running a deleted strategy`);
+	if (orphanLedger > 0) orphans.push(`${orphanLedger} ledger entr(ies) referencing a missing account`);
 	checks.push(
 		orphans.length > 0
 			? { name: "no-orphan-rows", area: "referential", status: "fail", detail: orphans.join("; "), fix: "Something deleted a parent row without its children. Check the delete path." }
@@ -211,7 +236,6 @@ export async function auditApp(db: D1Database, env: unknown): Promise<AppIntegri
 	);
 
 	// --- VALUE: AETHER is conserved and nothing is negative ---
-	const supply = await auditSupply(db);
 	checks.push({
 		name: "aether-conserved",
 		area: "value",
@@ -221,12 +245,9 @@ export async function auditApp(db: D1Database, env: unknown): Promise<AppIntegri
 	});
 
 	const negatives: string[] = [];
-	if (tables.has("aether_accounts")) {
-		const n = await count(db, "SELECT COUNT(*) as n FROM aether_accounts WHERE balance < 0");
-		if (n > 0) negatives.push(`${n} AETHER account(s) below zero`);
-	}
-	if (tables.has("bots")) {
-		const n = await count(db, "SELECT COUNT(*) as n FROM bots WHERE balance < 0");
+	if (negativeAccounts > 0) negatives.push(`${negativeAccounts} AETHER account(s) below zero`);
+	{
+		const n = negativeBots;
 		if (n > 0) negatives.push(`${n} bot(s) with negative balance`);
 	}
 	checks.push(
@@ -244,13 +265,11 @@ export async function auditApp(db: D1Database, env: unknown): Promise<AppIntegri
 		return typeof v === "string" ? v : "";
 	};
 	const idleBridges: string[] = [];
-	if (readEnv("RP_SHARED_SECRET") && tables.has("checks")) {
-		const n = await count(db, "SELECT COUNT(*) as n FROM checks WHERE name = 'rp-bridge'");
-		if (n === 0) idleBridges.push("Roblox city (RP_SHARED_SECRET set, no call has ever arrived)");
+	if (readEnv("RP_SHARED_SECRET") && rpBridgeCalls === 0) {
+		idleBridges.push("Roblox city (RP_SHARED_SECRET set, no call has ever arrived)");
 	}
-	if (readEnv("LOCAL_AGENT_SECRET") && tables.has("local_tasks")) {
-		const n = await count(db, "SELECT COUNT(*) as n FROM local_tasks WHERE status != 'queued'");
-		if (n === 0) idleBridges.push("local agent (LOCAL_AGENT_SECRET set, no task has ever been claimed)");
+	if (readEnv("LOCAL_AGENT_SECRET") && agentClaims === 0) {
+		idleBridges.push("local agent (LOCAL_AGENT_SECRET set, no task has ever been claimed)");
 	}
 	checks.push(
 		idleBridges.length > 0
