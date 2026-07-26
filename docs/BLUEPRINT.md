@@ -97,14 +97,29 @@ that measures, learns, and reallocates**:
 2. **The Observer scores strategies on evidence.** After trades accumulate, each
    strategy gets a score from its real trade history: win rate, expectancy,
    profit factor — not vibes.
-3. **Losers are retired, winners compound.** The learning cycle retires
+3. **A losing strategy is retired, however often it is right.** Retirement was
+   scored by blending win rate with profit-factor-over-cap, which let a
+   break-even strategy bank a third of the payoff half — so a good hit rate
+   could carry a **money-losing** strategy over the floor, and did:
+   `mean reversion` held the colony's best win rate (58%) and worst expectancy
+   (−0.25/trade) and survived every learning pass. Expectancy is now scored
+   explicitly and negative expectancy is **absolutely** disqualifying, whatever
+   the blend says; payoff is anchored at break-even so breaking even earns
+   nothing. The champion is never retired — the colony must always have
+   something to trade.
+4. **A child is funded like a hypothesis.** Bred children were staked at a
+   founder's full 1000, so unproven mutations instantly carried the weight of
+   strategies with hundreds of trades behind them and exploration diluted the
+   returns it existed to find. Children now start at 250 and grow through the
+   existing compounding if the evidence arrives.
+5. **Losers are retired, winners compound.** The learning cycle retires
    strategies that score below the floor, reassigns their bots to the best
    performer, and **compounds balances** — position size scales with each bot's
    growing (or shrinking) equity, so wins compound and losers self-throttle.
-4. **Winners evolve.** The top strategy is cloned with mutated parameters
+6. **Winners evolve.** The top strategy is cloned with mutated parameters
    (a new generation, lineage tracked via `parent_id`). The colony explores
    around what already works instead of guessing randomly.
-5. **Bots carry a soul.** Each bot inherits DNA (risk appetite, patience,
+7. **Bots carry a soul.** Each bot inherits DNA (risk appetite, patience,
    discipline) merged from Lumi, Reg, and the Databank's agent registry. DNA
    shapes position sizing and behavior, so bots are individuals, not clones.
 
@@ -222,10 +237,10 @@ roblox/                InMotion RP kit: server-side Luau (AetherBridge +
                        Paychecks) that pays Roblox city players conserved
                        AETHER through POST /rp/grant (see roblox/README.md)
 scripts/               dev.sh (local) + golive.sh (Cloudflare deploy)
-tests/integration/     29 suites, 219 tests: seed→trade→learn→evolve; audit→
+tests/integration/     30 suites, 224 tests: seed→trade→learn→evolve; audit→
                        sweep→check-in; aether, wallet, defi, shield, growth(x),
                        buildplan, freshness, rp, local, orchestrator, command,
-                       autonomy, authority-posture, ratelimit, rotation, appintegrity, callers, creator, policy, readiness, sources, dash, automation, hotpath, obsidian
+                       autonomy, authority-posture, ratelimit, rotation, appintegrity, callers, creator, policy, readiness, sources, dash, automation, hotpath, obsidian, learning
 ```
 
 ## The flow (how the agents hand off to each other)

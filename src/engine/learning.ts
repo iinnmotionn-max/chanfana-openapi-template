@@ -16,6 +16,7 @@ export interface StrategyScore {
 	winRate: number;
 	totalPnl: number;
 	profitFactor: number;
+	expectancy: number; // average PnL per closed trade — negative means it loses money
 	score: number;
 }
 
@@ -31,6 +32,15 @@ export interface LearnResult {
 const MIN_TRADES = 8; // evidence required before judging a strategy
 const SCORE_FLOOR = 0.35; // below this (with evidence), a strategy is retired
 const PF_CAP = 3;
+// What a newly bred child is funded with, against a founder's 1000.
+//
+// Children were staked at a full 1000 — the same as a strategy with hundreds
+// of closed trades behind it. So every mutation, proven or not, immediately
+// carried a founder's weight in the colony's results, and exploration diluted
+// the very returns it was meant to improve. A child is a hypothesis; it should
+// be funded like one, and grow through the compounding that already exists if
+// the evidence arrives.
+const CHILD_STAKE = 250;
 
 // opts.insight is Lumi's Insight skill level: it widens mutation spread and
 // lets the champion breed a larger brood — her learning literally deepens as
@@ -70,8 +80,19 @@ export async function runLearning(db: D1Database, opts: { insight?: number } = {
 	const scores: StrategyScore[] = rows.map((r) => {
 		const winRate = r.closed > 0 ? r.wins / r.closed : 0;
 		const profitFactor = r.grossLoss > 0 ? Math.min(r.grossWin / r.grossLoss, PF_CAP) : r.grossWin > 0 ? PF_CAP : 0;
-		// Blend hit rate and payoff quality into a single 0..1 score.
-		const score = winRate * 0.5 + (profitFactor / PF_CAP) * 0.5;
+		// Expectancy — average PnL per closed trade. This is the number that
+		// actually says whether a strategy makes money, and it was not being
+		// scored at all.
+		const expectancy = r.closed > 0 ? r.totalPnl / r.closed : 0;
+		// Payoff, anchored at BREAK-EVEN rather than at zero. Dividing profit
+		// factor by the cap meant a break-even strategy (PF 1.0) still earned a
+		// third of the payoff half — enough that a high hit rate could carry a
+		// strategy that loses money over the retirement floor. It did exactly
+		// that: "mean reversion" held the best win rate in the colony (58%) and
+		// the worst expectancy (-0.25/trade), and survived every learning pass.
+		// Break-even now earns nothing, because breaking even is not a payoff.
+		const payoff = Math.max(0, Math.min(1, (profitFactor - 1) / (PF_CAP - 1)));
+		const score = winRate * 0.5 + payoff * 0.5;
 		return {
 			strategyId: r.strategyId,
 			name: r.name,
@@ -83,13 +104,23 @@ export async function runLearning(db: D1Database, opts: { insight?: number } = {
 			winRate,
 			totalPnl: r.totalPnl,
 			profitFactor,
+			expectancy,
 			score,
 		};
 	});
 
 	const judged = scores.filter((s) => s.closed >= MIN_TRADES);
 	const champion = judged.length > 0 ? judged.reduce((a, b) => (b.score > a.score ? b : a)) : null;
-	const toRetire = judged.filter((s) => s.score < SCORE_FLOOR && s.strategyId !== champion?.strategyId);
+	// Two ways to be retired, and the second is absolute: a strategy that loses
+	// money on average is a losing strategy, however often it is right. No
+	// blend of metrics should be able to argue with a negative expectancy.
+	//
+	// The champion is never retired — the colony must always have something to
+	// trade. If the champion itself has negative expectancy that is a fact
+	// about the whole colony, and the report says so rather than emptying it.
+	const toRetire = judged.filter(
+		(s) => (s.score < SCORE_FLOOR || s.expectancy < 0) && s.strategyId !== champion?.strategyId,
+	);
 
 	const result: LearnResult = {
 		scores,
@@ -162,9 +193,9 @@ export async function runLearning(db: D1Database, opts: { insight?: number } = {
 				.first<{ id: number }>();
 			const bot = await db
 				.prepare(
-					"INSERT INTO bots (name, soul, strategy_id, symbol, balance, starting_balance) VALUES (?, ?, ?, 'SIM-BTC', 1000, 1000) RETURNING id",
+					"INSERT INTO bots (name, soul, strategy_id, symbol, balance, starting_balance) VALUES (?, ?, ?, 'SIM-BTC', ?, ?) RETURNING id",
 				)
-				.bind(childName.replace(/ /g, "-"), JSON.stringify(soul), child!.id)
+				.bind(childName.replace(/ /g, "-"), JSON.stringify(soul), child!.id, CHILD_STAKE, CHILD_STAKE)
 				.first<{ id: number }>();
 			result.brood++;
 			if (!result.evolved) {
