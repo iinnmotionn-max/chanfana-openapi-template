@@ -79,6 +79,19 @@ describe("The cockpit actually parses", () => {
 		expect(problems, problems.join("\n")).toEqual([]);
 	});
 
+	it("has no duplicate element ids — the renderer would write to the wrong one", async () => {
+		// Adding a panel by splitting an existing card left two <div id="growth-card">
+		// in the document. getElementById returns the first, so half the renderer
+		// would have been writing into a panel nobody was looking at.
+		// Static markup only — the script block builds ids dynamically inside
+		// string concatenation, and matching those would be noise.
+		const html = await dashHtml();
+		const body = html.slice(html.indexOf("<body"), html.indexOf("<script>"));
+		const ids = [...body.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
+		const dupes = [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
+		expect(dupes, `duplicate id(s): ${dupes.join(", ")}`).toEqual([]);
+	});
+
 	it("serves a complete document with the panels the renderer expects", async () => {
 		const html = await dashHtml();
 		expect(html).toContain("</html>");

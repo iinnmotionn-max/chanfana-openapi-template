@@ -578,6 +578,26 @@ export const dashHtml = `<!doctype html>
     border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
   .auto-run .t { color: var(--ink-2); flex: 1; }
   .auto-run .w { color: var(--muted); font-size: 10px; }
+  /* NEWSROOM — the drafts, who wrote them, and what to do with them. */
+  .nr-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 12px; }
+  .nr-fresh { font-size: 11px; color: var(--ink-2); }
+  .nr-fresh b { color: var(--series-4); }
+  .draft { background: var(--page); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 13px; margin-bottom: 9px; }
+  .draft-h { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 7px; }
+  .draft-h .plat { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.7px; font-weight: 700;
+    padding: 2px 8px; border-radius: 999px; border: 1px solid var(--series-4); color: var(--series-4); }
+  .draft-h .who { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.6px; padding: 2px 8px;
+    border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .draft-h .who.claude { border-color: var(--series-2); color: var(--series-2); }
+  .draft-h .ttl { font-weight: 650; color: var(--ink); font-size: 13px; flex: 1; min-width: 180px; }
+  .draft-b { font-size: 12.5px; color: var(--ink-2); white-space: pre-wrap; line-height: 1.55;
+    max-height: 132px; overflow: hidden; position: relative; }
+  .draft.open .draft-b { max-height: none; }
+  .draft-note { font-size: 10.5px; color: var(--muted); margin-top: 8px; font-style: italic; }
+  .draft-note.rejected { color: var(--warning); font-style: normal; }
+  .draft-acts { display: flex; gap: 7px; margin-top: 10px; flex-wrap: wrap; }
+  .draft-acts button { font-size: 10.5px; padding: 4px 11px; }
   .integ-breaks { margin-top: 10px; }
   .integ-break { font-size: 11.5px; border-left: 2px solid var(--critical); padding: 6px 10px;
     background: var(--page); border-radius: 0 7px 7px 0; margin-top: 5px; }
@@ -918,6 +938,15 @@ export const dashHtml = `<!doctype html>
   <div id="rp-panel"></div>
 </div>
 
+<div class="card" id="newsroom-card">
+  <h2>NEWSROOM — hourly drafts, made of facts<span class="src" data-src="growth"></span></h2>
+  <div class="nr-head">
+    <button id="nr-draft">Draft from today\'s events</button>
+    <span class="nr-fresh" id="nr-fresh"></span>
+  </div>
+  <div id="nr-drafts"></div>
+</div>
+
 <div class="card" id="growth-card">
   <h2>GROWTH — PR · content · campaigns · lead-gen<span class="src" data-src="growth"></span></h2>
   <div id="growth-panel"></div>
@@ -1063,6 +1092,7 @@ function render(d) {
   renderChamber(lastCouncil);
   renderJarvis(d.command || null, d.integrity || null, d.bridgeCallers || [], d.readiness || null);
   renderSources(d.sources || []);
+  renderNewsroom(d.growth || null);
   renderAutomation(d.automation || null);
   renderMachine(d.local || null);
   firstPaint = false;
@@ -1134,6 +1164,67 @@ function renderAutomation(a) {
     '<span class="s">' + esc(r.source) + '</span><span class="t">' + esc(r.detail) + '</span>' +
     '<span class="w">' + esc(String(r.ms)) + 'ms · ' + esc(r.at) + '</span></div>'
   ).join("");
+}
+
+// The newsroom deck: every draft, who wrote it, and what to do with it.
+// A rejected Claude draft is shown in amber with the reason — that note is the
+// most useful thing on the panel, because it is the system saying "the model
+// tried to make up a number and I stopped it".
+function renderNewsroom(g) {
+  const el = $("nr-drafts"), fresh = $("nr-fresh");
+  if (!el) return;
+  if (fresh && g && g.posts) {
+    const drafted = ((g.posts.recent || []).filter(p => p.event_key)).length;
+    fresh.innerHTML = '<b>' + esc(String(drafted)) + '</b> event-drafted post(s). Written on the hourly pulse; never the same event twice.';
+  }
+  const posts = ((g && g.posts && g.posts.recent) || []).filter(p => p.event_key);
+  if (posts.length === 0) {
+    el.innerHTML = '<div class="empty">No event-drafted posts yet. They are written on the hourly pulse, from things that actually happened — a quiet hour writes nothing.</div>';
+    return;
+  }
+  el.innerHTML = posts.map(p => {
+    const rejected = (p.writer_note || "").indexOf("rejected") >= 0;
+    return '<div class="draft" data-id="' + esc(String(p.id)) + '">' +
+      '<div class="draft-h">' +
+        '<span class="plat">' + esc(p.platform) + '</span>' +
+        '<span class="who ' + (p.writer === "claude" ? "claude" : "") + '">' + esc(p.writer || "template") + '</span>' +
+        '<span class="ttl">' + esc(p.title || "") + '</span>' +
+        '<span class="pill ' + (p.status === "published" ? "active" : "") + '">' + esc(p.status) + '</span>' +
+      '</div>' +
+      '<div class="draft-b">' + esc(p.body || "") + '</div>' +
+      (p.writer_note ? '<div class="draft-note ' + (rejected ? "rejected" : "") + '">' + esc(p.writer_note) + '</div>' : "") +
+      '<div class="draft-acts">' +
+        '<button data-act="expand">Full text</button>' +
+        (p.status === "draft" ? '<button data-act="queue">Queue</button>' : "") +
+        (p.status !== "published" ? '<button data-act="publish">Publish</button>' : "") +
+      '</div>' +
+    '</div>';
+  }).join("");
+
+  el.querySelectorAll(".draft").forEach(card => {
+    const id = card.dataset.id;
+    card.querySelectorAll("button[data-act]").forEach(b => {
+      b.onclick = async () => {
+        const act = b.dataset.act;
+        if (act === "expand") { card.classList.toggle("open"); b.textContent = card.classList.contains("open") ? "Collapse" : "Full text"; return; }
+        b.disabled = true;
+        try {
+          if (act === "queue") {
+            await fetch("/growth/post/" + id, { method: "PATCH", cache: "no-store", headers: ctlHeaders(), body: JSON.stringify({ status: "queued" }) });
+          } else {
+            // Publishing reaches outside the system, so it needs the creator
+            // key — and says so plainly rather than failing silently.
+            const r = await fetch("/growth/post/" + id + "/publish", { method: "POST", cache: "no-store", headers: ctlHeaders(), body: "{}" });
+            if (!r.ok) {
+              const e = await r.json().catch(() => null);
+              $("status").textContent = "refused · " + ((e && e.errors && e.errors[0] && e.errors[0].message) || ("HTTP " + r.status));
+            }
+          }
+          await load();
+        } finally { b.disabled = false; }
+      };
+    });
+  });
 }
 
 function renderSources(sources) {
@@ -2225,6 +2316,20 @@ function markKeyButton() {
   const b = $("jv-key");
   if (b) { b.classList.toggle("on", !!creatorKey()); b.textContent = creatorKey() ? "🔓" : "🔑"; }
 }
+$("nr-draft").onclick = async (e) => {
+  const b = e.target;
+  b.disabled = true; b.textContent = "Reading the record…";
+  try {
+    const r = await fetch("/growth/newsroom", { method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ max: 3 }) });
+    const { result } = await r.json();
+    $("status").textContent = result.drafted > 0
+      ? "drafted " + result.drafted + " post(s) from real events"
+      : "nothing new to say — " + result.skipped + " event(s) already covered";
+    await load();
+  } catch (err) {} finally { b.disabled = false; b.textContent = "Draft from today's events"; }
+};
+
 $("jv-key").onclick = () => {
   const has = !!creatorKey();
   if (has && !confirm("Forget the creator key for this tab?")) return;
