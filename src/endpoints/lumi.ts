@@ -5,6 +5,7 @@ import { z } from "zod";
 import { AppContext } from "../types";
 import { lumiPulse, perfSummary, selfAssess } from "../engine/lumi";
 import { watchIntegrity } from "../engine/appintegrity";
+import { automationHealth, recordRun } from "../engine/automation";
 import { research, scoutMarket } from "../engine/knowledge";
 import { curriculumStatus, runStudy } from "../engine/training";
 
@@ -44,12 +45,17 @@ export class LumiPulse extends OpenAPIRoute {
 	};
 
 	public async handle(c: AppContext) {
-		const result = await lumiPulse(c.env.DB);
+		const t0 = Date.now();
+		const result = await lumiPulse(c.env.DB, c.env);
 		// Same structural watch the cron runs — a manual pulse should notice
 		// drift too, not only the unattended one.
 		const integrity = await watchIntegrity(c.env.DB, c.env);
 		result.decisions.push(integrity.note);
-		return { success: true, result: { ...result, integrity } };
+		// Recorded as manual/autopilot, never as cron — a pulse someone fired
+		// by hand must not make a dead schedule look alive.
+		const src = c.req.query("source") === "autopilot" ? "autopilot" : "manual";
+		await recordRun(c.env.DB, "pulse", src, true, `${result.decisions.length} decisions`, Date.now() - t0);
+		return { success: true, result: { ...result, integrity, automation: await automationHealth(c.env.DB) } };
 	}
 }
 

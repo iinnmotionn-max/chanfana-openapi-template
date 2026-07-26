@@ -556,6 +556,28 @@ export const dashHtml = `<!doctype html>
   .src.measured { border-color: var(--series-4); color: var(--series-4); }
   .src.sim { border-color: var(--warning); color: var(--warning); }
   .src.offline { border-color: var(--line); color: var(--muted); }
+  /* Automation health — a stopped cron must not look like a healthy one. */
+  .auto { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .auto-v { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; padding: 4px 12px;
+    border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .auto-v.healthy { border-color: var(--good); color: var(--good); }
+  .auto-v.late { border-color: var(--warning); color: var(--warning); }
+  .auto-v.stalled { border-color: var(--critical); color: var(--critical);
+    animation: alertglow 1.8s ease-in-out infinite; }
+  .auto-v.never { border-color: var(--line); color: var(--muted); }
+  .auto-d { font-size: 12px; color: var(--ink-2); flex: 1; min-width: 260px; line-height: 1.5; }
+  .auto-stat { font-size: 11px; color: var(--muted); }
+  .auto-stat b { color: var(--ink); font-weight: 650; }
+  .auto-runs { margin-top: 11px; display: grid; gap: 4px; }
+  .auto-run { display: flex; gap: 10px; align-items: baseline; font-size: 11.5px;
+    background: var(--page); border-left: 2px solid var(--series-4); border-radius: 0 7px 7px 0; padding: 5px 10px; }
+  .auto-run.bad { border-left-color: var(--critical); }
+  .auto-run .k { font-weight: 700; color: var(--series-4); }
+  .auto-run.bad .k { color: var(--critical); }
+  .auto-run .s { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+  .auto-run .t { color: var(--ink-2); flex: 1; }
+  .auto-run .w { color: var(--muted); font-size: 10px; }
   .integ-breaks { margin-top: 10px; }
   .integ-break { font-size: 11.5px; border-left: 2px solid var(--critical); padding: 6px 10px;
     background: var(--page); border-radius: 0 7px 7px 0; margin-top: 5px; }
@@ -801,6 +823,16 @@ export const dashHtml = `<!doctype html>
   <div class="orch-log" id="orch-log"></div>
 </div>
 
+<div class="card" id="automation-card">
+  <h2>AUTOMATION — is Lumi actually running herself?<span class="src" data-src="automation"></span></h2>
+  <div class="auto">
+    <span class="auto-v" id="auto-verdict">—</span>
+    <span class="auto-d" id="auto-detail"></span>
+    <span class="auto-stat" id="auto-stat"></span>
+  </div>
+  <div class="auto-runs" id="auto-runs"></div>
+</div>
+
 <div class="card" id="training-card">
   <h2>AETHER'S SCHOOL — training on the science of trades (Invest realm)</h2>
   <div id="training-panel"></div>
@@ -1031,6 +1063,7 @@ function render(d) {
   renderChamber(lastCouncil);
   renderJarvis(d.command || null, d.integrity || null, d.bridgeCallers || [], d.readiness || null);
   renderSources(d.sources || []);
+  renderAutomation(d.automation || null);
   renderMachine(d.local || null);
   firstPaint = false;
 }
@@ -1088,6 +1121,21 @@ function renderMachine(m) {
 // Stamp every panel with where its numbers come from. A panel with no entry
 // gets nothing rather than a guess — an unlabelled panel is better than a
 // wrong label.
+function renderAutomation(a) {
+  const v = $("auto-verdict"), d = $("auto-detail"), st = $("auto-stat"), rs = $("auto-runs");
+  if (!v || !a) return;
+  v.textContent = a.label;
+  v.className = "auto-v " + a.verdict;
+  d.textContent = a.detail;
+  st.innerHTML = '<b>' + esc(String(a.runs24h)) + '</b> run(s) in 24h · <b>' +
+    esc(String(a.failures24h)) + '</b> failed · expected every <b>' + esc(String(a.expectedEveryMinutes)) + 'm</b>';
+  rs.innerHTML = (a.recent || []).map(r =>
+    '<div class="auto-run ' + (r.ok ? "" : "bad") + '"><span class="k">' + esc(r.kind) + '</span>' +
+    '<span class="s">' + esc(r.source) + '</span><span class="t">' + esc(r.detail) + '</span>' +
+    '<span class="w">' + esc(String(r.ms)) + 'ms · ' + esc(r.at) + '</span></div>'
+  ).join("");
+}
+
 function renderSources(sources) {
   const by = {};
   (sources || []).forEach(s => { by[s.panel] = s; });

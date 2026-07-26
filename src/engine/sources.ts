@@ -113,5 +113,19 @@ export async function panelSources(db: D1Database, env: unknown): Promise<PanelS
 		agent && claimed > 0 ? `${claimed} task(s) claimed by a real machine.` : agent ? "Secret set, but no agent has claimed a task yet." : "Set LOCAL_AGENT_SECRET and run agent/lumi-agent.mjs.",
 	);
 
+	// Automation gets a source too: the panel is only meaningful if you can see
+	// at a glance whether it is describing a live schedule or a dev machine.
+	const lastCron = await db
+		.prepare("SELECT (julianday('now') - julianday(created_at)) * 1440 AS mins FROM automation_runs WHERE source = 'cron' ORDER BY id DESC LIMIT 1")
+		.first<{ mins: number }>();
+	add(
+		"automation",
+		lastCron ? (lastCron.mins <= 90 ? "live" : "offline") : "offline",
+		lastCron ? (lastCron.mins <= 90 ? "CRON LIVE" : "CRON SILENT") : "NOT DEPLOYED",
+		lastCron
+			? `Last unattended run ${Math.round(lastCron.mins)} minute(s) ago.`
+			: "The hourly Cron Trigger has never fired here — wrangler dev does not run crons. It starts once deployed.",
+	);
+
 	return out;
 }

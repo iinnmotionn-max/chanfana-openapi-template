@@ -33,6 +33,7 @@ import { IntegrityProbe, IntegrityScan, IntegrityStatus, ReadinessStatus } from 
 import { BridgeCallers, BridgeTrust } from "./endpoints/bridges";
 import { watchIntegrity } from "./engine/appintegrity";
 import { setSelfHandler } from "./engine/selfref";
+import { recordRun } from "./engine/automation";
 import { AetherWallet, WalletCreate, WalletGet, WalletLink, WalletList, WalletSend } from "./endpoints/wallet";
 import {
 	DefiAddLiquidity,
@@ -272,8 +273,25 @@ export default {
 		// The hourly heartbeat: Lumi pulses, and the app checks its own
 		// structure. The integrity watch runs even if the pulse throws — a
 		// broken engine is exactly when you want to know the wiring drifted.
+		// Each half records itself, so a cron that stops firing becomes a
+		// measurable GAP rather than numbers that quietly go stale.
 		ctx.waitUntil(
-			Promise.allSettled([lumiPulse(env.DB), watchIntegrity(env.DB, env)]),
+			(async () => {
+				const t0 = Date.now();
+				const [pulse, integrity] = await Promise.allSettled([lumiPulse(env.DB, env), watchIntegrity(env.DB, env)]);
+				const ok = pulse.status === "fulfilled";
+				await recordRun(
+					env.DB,
+					"pulse",
+					"cron",
+					ok,
+					ok ? `${pulse.value.decisions.length} decisions` : `pulse threw: ${String(pulse.reason).slice(0, 200)}`,
+					Date.now() - t0,
+				).catch(() => {});
+				if (integrity.status === "fulfilled") {
+					await recordRun(env.DB, "integrity", "cron", integrity.value.ok, integrity.value.note, 0).catch(() => {});
+				}
+			})(),
 		);
 	},
 };

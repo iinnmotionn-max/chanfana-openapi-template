@@ -48,6 +48,37 @@ describe("The cockpit actually parses", () => {
 		expect(() => new Function('const s = "a\\nb";')).not.toThrow();
 	});
 
+	it("has balanced block tags — a stray one silently swallows the next panel", async () => {
+		// Browsers auto-correct mismatched tags instead of erroring, so a wrong
+		// closing tag does not break the page: it just quietly nests the NEXT
+		// panel inside the previous one. It renders, it looks almost right, and
+		// nothing anywhere complains. That happened here when a panel was added
+		// with </section> in a document whose panels are <div class="card">.
+		//
+		// Counting opens against closes is NOT enough — I tried that first and it
+		// passed on the broken markup, because <div>…</section><section>…</div>
+		// balances perfectly by count while nesting the wrong way. It needs a
+		// stack: each closing tag must match the one actually open.
+		const html = await dashHtml();
+		const body = html.slice(html.indexOf("<body"), html.indexOf("<script>"));
+		const stack: { tag: string; at: number }[] = [];
+		const problems: string[] = [];
+		const re = /<(\/?)(div|section|main|header|footer|nav)[\s>]/g;
+		let m: RegExpExecArray | null;
+		while ((m = re.exec(body)) !== null) {
+			const [, closing, tag] = m;
+			if (!closing) {
+				stack.push({ tag, at: m.index });
+			} else {
+				const top = stack.pop();
+				if (!top) problems.push(`</${tag}> with nothing open, near: ${body.slice(m.index - 60, m.index + 12).trim()}`);
+				else if (top.tag !== tag) problems.push(`</${tag}> closes a <${top.tag}> opened at: ${body.slice(top.at, top.at + 70).trim()}`);
+			}
+		}
+		for (const left of stack) problems.push(`<${left.tag}> never closed: ${body.slice(left.at, left.at + 70).trim()}`);
+		expect(problems, problems.join("\n")).toEqual([]);
+	});
+
 	it("serves a complete document with the panels the renderer expects", async () => {
 		const html = await dashHtml();
 		expect(html).toContain("</html>");

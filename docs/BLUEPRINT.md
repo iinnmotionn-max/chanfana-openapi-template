@@ -59,6 +59,12 @@ Lumi is a living system, not a static dashboard:
 - **Awareness** (`selfAssess`): every pulse she states where she is — stage
   (Hatchling → Apprentice → Operator → Strategist → Sage), focus, current
   initiative (the open quest closest to done), and blockers.
+- **Unattended action** (`actOnInitiative`, needs the `command` grant): one
+  act per pulse, never a cascade, ordered by urgency — realm in alert →
+  sweep; trading halted → ledger audit; **app integrity failing → structural
+  audit** (ranked above capital work: when the wiring is wrong every number
+  is suspect, and she says plainly that this one needs a person); **a bridge
+  door locked out → security scan**; unexamined evidence → learning pass.
 - **Initiative** (`pursueInitiative`): she acts on the assessment — extra
   cycles, research expeditions, market scouts — and keeps a self-set goal in
   the Databank until the quest completes. She does not stop until it's done.
@@ -183,6 +189,8 @@ src/engine/            The colony's brains:
   ratelimit.ts       Failure lockouts + call caps per bridge; Shield reads it
   creator.ts         The control-plane lock: which scopes need CREATOR_KEY
   policy.ts          Every writing route classified open/creator/bridge + why
+  automation.ts      Is the hourly cron actually firing? Records every
+                       unattended run; never / healthy / late / stalled
   sources.ts         Per-panel provenance: live / ledger / measured / sim /
                        offline, so a simulation never looks like the real thing
   readiness.ts       Deployment preflight: what is wired, and the command for
@@ -212,10 +220,10 @@ roblox/                InMotion RP kit: server-side Luau (AetherBridge +
                        Paychecks) that pays Roblox city players conserved
                        AETHER through POST /rp/grant (see roblox/README.md)
 scripts/               dev.sh (local) + golive.sh (Cloudflare deploy)
-tests/integration/     26 suites, 196 tests: seed→trade→learn→evolve; audit→
+tests/integration/     27 suites, 207 tests: seed→trade→learn→evolve; audit→
                        sweep→check-in; aether, wallet, defi, shield, growth(x),
                        buildplan, freshness, rp, local, orchestrator, command,
-                       autonomy, authority-posture, ratelimit, rotation, appintegrity, callers, creator, policy, readiness, sources, dash
+                       autonomy, authority-posture, ratelimit, rotation, appintegrity, callers, creator, policy, readiness, sources, dash, automation
 ```
 
 ## The flow (how the agents hand off to each other)
@@ -270,6 +278,7 @@ Full list is auto-documented at `GET /` (OpenAPI). Grouped by realm/subsystem:
 | **InMotion RP** | `POST /rp/grant` `/rp/spend` · `GET /rp/player/:userId` | Roblox city bridge: players earn (treasury→player) and spend (player→treasury) conserved AETHER; secret-gated via `RP_SHARED_SECRET`, off until set |
 | **Control plane** | `CREATOR_KEY` guards `POST /command` + `PATCH /command/authority` | The authority ledger says what Lumi *may* do; this key says *who may ask her*. Observe/operate (read, trade, audit, sweep, study) stay open so a fresh checkout is usable. **Granting** spend / publish / command / machine — and issuing any order under one — requires the key. **Revoking never does:** losing a credential must never leave you unable to shut a door. With no key set, the consequential half is unavailable to everyone rather than open to everyone; Shield says so on the security panel. Key lives in the cockpit's sessionStorage only, never on disk or in the Databank. **The same key guards the side doors**, because a scope model you can step around by choosing a different URL is theatre: `/aether/{transfer,reward,spend}`, `/wallet/send`, all seven `/defi/*`, `/growth/connect`, `/growth/post/:id/publish`, and `/bridges/trust` all require it. Reading is never gated — you can always see what is happening. `/rp/*` and `/local/*` keep their own bridge secrets. |
 | **Guard proof** | `POST /integrity/probe` · `src/engine/policy.ts` · `src/engine/probe.ts` | Both security holes this project shipped were found by a human reading the route table. That is now automated, twice over. **(1)** Every writing route is classified in `policy.ts` — `open` / `creator` / `bridge` — with the reason; a test reads `src/index.ts` and fails if any POST/PATCH/PUT/DELETE is unclassified, so you cannot add a writing endpoint without deciding in writing what may reach it. **(2)** The probe *attacks the running Worker*: it dispatches an anonymous, empty-bodied request through the real router at every `creator` route and demands a refusal. A policy that claims "guarded" while the handler forgot the guard is the exact bug we hit twice — this catches it. A `400` counts as a **hole**: reaching schema validation means authorization ran late or not at all. Shield runs the probe on every scan and zeroes the authority score if any route fails, because one open door makes every other line on that panel advisory. |
+| **Automation health** | `automation` in `/analytics/overview` · `src/engine/automation.ts` · migration 0025 | Lumi pulses hourly on a Cron Trigger. The failure mode is silent: a stopped cron looks exactly like a healthy one — the cockpit keeps rendering the last numbers it has, every realm still says nominal, and nothing says "this is from Tuesday". Every unattended run now records what ran, **what fired it**, whether it worked and how long it took, so the gap is measurable. Three distinctions it refuses to blur: *never run* is not *stalled* (a fresh system is new, not broken); a pulse fired **by hand** never counts toward schedule health, or clicking Pulse would paper over a dead trigger; and lateness only starts at 1.5× the hourly cadence (stalled at 3×) because Cloudflare crons are best-effort and an alarm that cries wolf gets ignored. |
 | **Panel provenance** | `sources` in `/analytics/overview` · `src/engine/sources.ts` | Every panel states where its numbers come from, computed from live state: **LIVE** (real outside-world data flowing), **REAL LEDGER** (conserved AETHER, actually recorded), **MEASURED** (this system's own state), **SIM TAPE** (deterministic simulation), **OFFLINE / ARMED / LOCAL DRAFTS** (needs a key, or has one but nothing has called yet). Every panel always rendered real Databank rows — none of it was ever mock — but "real rows" and "real world" are different claims, and an unlabelled number let a reader take only the flattering one. The trading panels say **PAPER** on either feed: no broker is connected, on any tape. The market only reads LIVE once ≥2 real observations are banked, which is the same threshold the feed itself uses to refuse to invent movement. Lumi now scouts real prices **every pulse** and reports the miss when she can't. |
 | **Readiness** | `GET /ready` | One page answering "what do I still have to do?". Every switch — creator key, Claude, open models, both bridges, publishing, Sui — with what it unlocks and the exact command, plus a single named next step. `CREATOR_KEY` is the only **required** one. It states its own limit: *configured* means the value is present, not that it works — a revoked key looks identical from here, and each realm's panel reports whether its service actually answered. `scripts/golive.sh` now offers to set the creator key during deploy (step 6/7) rather than leaving a live Worker answering 503 with no explanation. |
 | **Total Command** | `GET /command` · `POST /command` · `PATCH /command/authority` | One bar, all control: a plain-English order routes deterministically to one of **15** registered capabilities across every realm, is checked against the **authority ledger** — 6 scopes, `observe`/`operate` granted by default, `spend`/`publish`/`command`/`machine` revoked until the creator grants them — then runs for real and is logged. Boundary stated in-product: the Worker itself has no filesystem/shell/OS, so it cannot touch the creator's computer; the only path to the machine is the `machine` capability, which queues work for the local agent the creator runs themselves (see Local Agent). |

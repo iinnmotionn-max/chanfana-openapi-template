@@ -191,7 +191,7 @@ export async function dispatch(
 	let out: DispatchResult;
 	switch (target) {
 		case "lumi": {
-			const pulse = await lumiPulse(db);
+			const pulse = await lumiPulse(db, env);
 			out = { target, kind: "agent", status: "done", result: pulse.decisions.join("; ") };
 			break;
 		}

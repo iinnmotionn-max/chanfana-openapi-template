@@ -337,7 +337,7 @@ export interface PulseResult {
 // One heartbeat of Lumi running the whole operation herself: trade, learn,
 // audit, sweep, progress quests, grow. Engineering scales her trading
 // throughput; Insight (inside runLearning) scales her learning depth.
-export async function lumiPulse(db: D1Database): Promise<PulseResult> {
+export async function lumiPulse(db: D1Database, env?: unknown): Promise<PulseResult> {
 	const t0 = Date.now();
 	const decisions: string[] = [];
 	const before = await getLumi(db);
@@ -405,7 +405,7 @@ export async function lumiPulse(db: D1Database): Promise<PulseResult> {
 
 	// Autonomy: with the `command` grant, she also takes ONE corrective action
 	// on her own read of the situation. Without it, this is a no-op.
-	const autonomous = await actOnInitiative(db);
+	const autonomous = await actOnInitiative(db, env);
 	decisions.push(autonomous.acted ? `unattended: ${autonomous.reason} → ${autonomous.action} (${autonomous.result})` : `no unattended action (${autonomous.reason})`);
 
 	await db.prepare("UPDATE lumi_state SET pulses = pulses + 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
