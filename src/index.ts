@@ -29,7 +29,7 @@ import {
 	AetherTransfer,
 } from "./endpoints/aether";
 import { ShieldKyc, ShieldScan, ShieldStatus } from "./endpoints/shield";
-import { IntegrityProbe, IntegrityScan, IntegrityStatus } from "./endpoints/integrity";
+import { IntegrityProbe, IntegrityScan, IntegrityStatus, ReadinessStatus } from "./endpoints/integrity";
 import { BridgeCallers, BridgeTrust } from "./endpoints/bridges";
 import { watchIntegrity } from "./engine/appintegrity";
 import { setSelfHandler } from "./engine/selfref";
@@ -211,6 +211,7 @@ openapi.post("/shield/kyc", ShieldKyc);
 openapi.get("/integrity", IntegrityStatus);
 openapi.post("/integrity/scan", IntegrityScan);
 openapi.post("/integrity/probe", IntegrityProbe);
+openapi.get("/ready", ReadinessStatus);
 
 // Bridge callers — who walks through the inbound doors, and who you vouch for
 openapi.get("/bridges", BridgeCallers);

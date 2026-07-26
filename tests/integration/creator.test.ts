@@ -1,5 +1,6 @@
-import { SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { consume, LIMITS } from "../../src/engine/ratelimit";
 
 // The authority ledger was built as the boundary on Lumi's power — but the
 // endpoint that WRITES the ledger was open to anyone who knew the URL. An
@@ -78,12 +79,20 @@ describe("The control plane has a lock — the ledger is not self-serve", () => 
 	});
 
 	it("caps command volume so the bar cannot be driven by a script", async () => {
-		let limited = false;
-		for (let i = 0; i < 70; i++) {
-			const res = await order("audit");
-			if (res.status === 429) { limited = true; break; }
+		// An order is accepted on a fresh bucket...
+		expect((await order("xyzzy-not-a-capability")).status).toBe(200);
+
+		// ...and refused once the bucket is spent. The bucket is drained here
+		// through the engine rather than by firing 60+ HTTP requests: that
+		// version passed alone and timed out under full-suite load, which is a
+		// test that reports on machine speed rather than on the code.
+		// Draining directly still proves the wiring — the endpoint has to be
+		// reading this exact bucket for the next request to be refused.
+		for (let i = 0; i < LIMITS.command.limit; i++) {
+			await consume(env.DB, "call:command", LIMITS.command.limit, LIMITS.command.window);
 		}
-		expect(limited, "the 60/min command cap actually bites").toBe(true);
+		const blocked = await order("xyzzy-not-a-capability");
+		expect(blocked.status, "the command cap is wired to POST /command").toBe(429);
 	});
 
 	it("closes the SIDE DOORS — value cannot move by picking a different URL", async () => {

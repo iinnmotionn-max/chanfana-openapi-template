@@ -6,6 +6,7 @@ import { z } from "zod";
 import { AppContext } from "../types";
 import { auditApp, recordAppAudit } from "../engine/appintegrity";
 import { probeGuards } from "../engine/probe";
+import { assessReadiness } from "../engine/readiness";
 
 export class IntegrityStatus extends OpenAPIRoute {
 	public schema = {
@@ -69,5 +70,19 @@ export class IntegrityScan extends OpenAPIRoute {
 		const audit = await auditApp(c.env.DB, c.env);
 		await recordAppAudit(c.env.DB, audit);
 		return { success: true, result: audit };
+	}
+}
+
+export class ReadinessStatus extends OpenAPIRoute {
+	public schema = {
+		tags: ["Integrity"],
+		summary: "What is wired, what isn't, and the exact command for each gap",
+		responses: {
+			"200": { description: "Readiness report", ...contentJson({ success: z.boolean(), result: z.any() }) },
+		},
+	};
+
+	public async handle(c: AppContext) {
+		return { success: true, result: assessReadiness(c.env) };
 	}
 }

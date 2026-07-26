@@ -537,6 +537,16 @@ export const dashHtml = `<!doctype html>
   .caller.stranger .trust { cursor: pointer; border: 1px solid var(--warning); border-radius: 5px;
     padding: 0 5px; font-size: 9.5px; letter-spacing: 0.4px; }
   .caller.stranger .trust:hover { background: var(--warning); color: var(--page); }
+  /* Readiness — what is still unwired, with the command to fix it. */
+  .ready { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .ready:empty { display: none; }
+  .ready .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); }
+  .rdy { font-size: 10.5px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+  .rdy.on { border-color: var(--good); color: var(--good); }
+  .rdy.req { border-color: var(--critical); color: var(--critical); font-weight: 700; }
+  .rdy-next { font-size: 11px; color: var(--ink-2); margin-top: 8px; }
+  .rdy-next code { background: var(--page); padding: 2px 7px; border-radius: 5px; color: var(--series-4);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; }
   .integ-breaks { margin-top: 10px; }
   .integ-break { font-size: 11.5px; border-left: 2px solid var(--critical); padding: 6px 10px;
     background: var(--page); border-radius: 0 7px 7px 0; margin-top: 5px; }
@@ -762,6 +772,8 @@ export const dashHtml = `<!doctype html>
     <div class="jv-heard" id="jv-heard"></div>
     <div class="jv-grants" id="jv-grants"></div>
     <div class="callers" id="jv-callers"></div>
+    <div class="ready" id="jv-ready"></div>
+    <div class="rdy-next" id="jv-ready-next"></div>
     <div class="integ-breaks" id="jv-integ-breaks"></div>
     <div class="jv-out" id="jv-out"></div>
     <div class="jv-boundary" id="jv-boundary"></div>
@@ -1008,7 +1020,7 @@ function render(d) {
   renderRp(d.rp || null);
   renderOrchestrator(d.orchestrator || null);
   renderChamber(lastCouncil);
-  renderJarvis(d.command || null, d.integrity || null, d.bridgeCallers || []);
+  renderJarvis(d.command || null, d.integrity || null, d.bridgeCallers || [], d.readiness || null);
   renderMachine(d.local || null);
   firstPaint = false;
 }
@@ -1067,7 +1079,7 @@ function renderMachine(m) {
 let lastCommand = null;
 let transcript = [];   // every order this session, newest first
 let orderHistory = []; // for ↑/↓ recall in the input
-function renderJarvis(cmd, integrity, callers) {
+function renderJarvis(cmd, integrity, callers, readiness) {
   const g = $("jv-grants"), b = $("jv-boundary"), o = $("jv-out");
   if (!g) return;
   if (cmd) {
@@ -1129,6 +1141,23 @@ function renderJarvis(cmd, integrity, callers) {
         await load();
       };
     });
+  }
+
+  // What is still unwired. A missing REQUIRED switch is red, because the
+  // system will refuse things and the reason should never be a mystery.
+  const rd = $("jv-ready"), rn = $("jv-ready-next");
+  if (rd && readiness) {
+    rd.innerHTML = '<span class="lbl">Wired</span>' + (readiness.items || []).map(i =>
+      '<span class="rdy ' + (i.configured ? "on" : (i.need === "required" ? "req" : "")) + '" title="' +
+      esc(i.unlocks) + (i.configured ? "" : "\n\n" + esc(i.command)) + '">' +
+      (i.configured ? "✓ " : (i.need === "required" ? "! " : "")) + esc(i.name) + '</span>'
+    ).join("");
+    if (rn) {
+      const cmd2 = (readiness.nextStep || "").match(/npx wrangler secret put \\S+|bash \\S+/);
+      rn.innerHTML = readiness.deployable && readiness.configured === readiness.total
+        ? ""
+        : esc(readiness.nextStep) + (cmd2 ? "" : "");
+    }
   }
 
   // A failing check is useless without the remedy, so both are shown.
@@ -2161,7 +2190,7 @@ async function runOrder(order) {
     // A dead network is not a completed order. Say so rather than clearing the
     // box and looking like it worked.
     transcript.unshift({ status: "failed", capability: "unreachable", result: "Could not reach the Worker — nothing ran.", at: stamp() });
-    renderJarvis(lastAnalytics ? lastAnalytics.command : null, lastAnalytics ? lastAnalytics.integrity : null, lastAnalytics ? lastAnalytics.bridgeCallers : []);
+    renderJarvis(lastAnalytics ? lastAnalytics.command : null, lastAnalytics ? lastAnalytics.integrity : null, lastAnalytics ? lastAnalytics.bridgeCallers : [], lastAnalytics ? lastAnalytics.readiness : null);
   } finally { btn.disabled = false; btn.textContent = "Execute"; if (jv) jv.classList.remove("busy"); }
 }
 

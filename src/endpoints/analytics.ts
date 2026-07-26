@@ -13,6 +13,7 @@ import { suiChainStatus } from "../engine/sui";
 import { shieldOverview } from "../engine/shield";
 import { auditApp } from "../engine/appintegrity";
 import { callerRoster } from "../engine/callers";
+import { assessReadiness } from "../engine/readiness";
 import { walletList } from "../engine/wallet";
 import { defiOverview } from "../engine/defi";
 import { growthOverview } from "../engine/growth";
@@ -112,6 +113,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 		const local = await localOverview(db, c.env);
 		const integrity = await auditApp(db, c.env);
 		const bridgeCallers = await callerRoster(db);
+		const readiness = assessReadiness(c.env);
 		const rp = {
 			citizens: rpCitizens?.n ?? 0,
 			cityBalance: Number((rpCitizens?.bal ?? 0).toFixed(2)),
@@ -177,6 +179,7 @@ export class AnalyticsOverview extends OpenAPIRoute {
 				local,
 				integrity,
 				bridgeCallers,
+				readiness,
 			},
 		};
 	}
