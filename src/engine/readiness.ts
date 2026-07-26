@@ -91,6 +91,14 @@ const CATALOG: Omit<ReadinessItem, "configured">[] = [
 		command: "npx wrangler secret put LINKEDIN_TOKEN",
 	},
 	{
+		name: "Obsidian vault",
+		envKey: "OBSIDIAN_VAULT_ID",
+		need: "optional",
+		unlocks: "Stamps exported notes with the vault they belong to. GET /obsidian/export works with or without it.",
+		command: "npx wrangler secret put OBSIDIAN_VAULT_ID",
+		note: "A vault id is a LOCAL identifier, not a credential. It grants this system no access to your vault — nothing can write there remotely. You copy the exported files in yourself.",
+	},
+	{
 		name: "AETHER on Sui",
 		envKey: "AETHER_PACKAGE_ID",
 		need: "optional",

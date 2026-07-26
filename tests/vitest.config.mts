@@ -45,6 +45,9 @@ export default defineWorkersConfig({
 						// The control-plane lock. Bound so tests can exercise BOTH
 						// sides: with the key, and (by omitting the header) without.
 						CREATOR_KEY: "test-creator-key",
+						// A vault id is a label, not a credential — bound so the export
+						// can be asserted to stamp it without granting anything.
+						OBSIDIAN_VAULT_ID: "b3eb17c55ee39515",
 					},
 				},
 			},

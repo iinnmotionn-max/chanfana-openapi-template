@@ -67,6 +67,13 @@ RP_SHARED_SECRET=choose-another-long-random-string
 X_TOKEN=
 LINKEDIN_TOKEN=
 
+# --- Obsidian (optional, and honest about what it is) ---
+# Your vault id. This is a LOCAL identifier, not a credential: no server can
+# write into your vault because it knows one, and Sync/Publish need their own
+# account. Setting this only STAMPS exported notes with the vault they belong
+# to. GET /obsidian/export works with or without it — you copy the files in.
+OBSIDIAN_VAULT_ID=
+
 # --- AETHER on Sui (set by sui/publish.sh after you publish) ---
 AETHER_PACKAGE_ID=
 AETHER_TREASURY_CAP=
