@@ -69,3 +69,48 @@ describe("Publisher — 'posted' means a real post, never a claim", () => {
 		expect(res.status, "no creator key → refused").toBe(401);
 	});
 });
+
+describe("Auto-publish — the 'publish' scope, made real", () => {
+	async function grantPublish(on: boolean) {
+		await env.DB.prepare("UPDATE authority SET granted = ? WHERE scope = 'publish'").bind(on ? 1 : 0).run();
+	}
+	async function queuePost(platform: string) {
+		return env.DB
+			.prepare("INSERT INTO posts (platform, kind, title, body, status) VALUES (?, 'post', 'T', 'Body with number 7.', 'queued') RETURNING id")
+			.bind(platform)
+			.first<{ id: number }>();
+	}
+
+	it("publishes NOTHING while the publish scope is revoked", async () => {
+		const { publishQueued } = await import("../../src/engine/publisher");
+		await grantPublish(false);
+		await queuePost("x");
+		const r = await publishQueued(env.DB, {}, 3);
+		expect(r.published).toBe(0);
+		expect(r.skipped).toContain("publish scope not granted");
+	});
+
+	it("with the scope granted but no live connector, holds the post — never fakes", async () => {
+		const { publishQueued } = await import("../../src/engine/publisher");
+		await grantPublish(true);
+		const q = await queuePost("x"); // X_TOKEN not set in tests → connector not live
+		const r = await publishQueued(env.DB, {}, 3);
+		expect(r.attempted).toBeGreaterThan(0);
+		expect(r.published, "no live connector → nothing posted").toBe(0);
+		const row = await env.DB.prepare("SELECT status FROM posts WHERE id = ?").bind(q!.id).first<{ status: string }>();
+		expect(row?.status, "stays queued, not falsely published").toBe("queued");
+		await grantPublish(false);
+	});
+
+	it("only touches queued posts, never drafts", async () => {
+		const { publishQueued } = await import("../../src/engine/publisher");
+		await grantPublish(true);
+		const draft = await env.DB
+			.prepare("INSERT INTO posts (platform, kind, title, body, status) VALUES ('x','post','D','B','draft') RETURNING id")
+			.first<{ id: number }>();
+		await publishQueued(env.DB, {}, 3);
+		const row = await env.DB.prepare("SELECT status FROM posts WHERE id = ?").bind(draft!.id).first<{ status: string }>();
+		expect(row?.status, "a draft is never auto-published").toBe("draft");
+		await grantPublish(false);
+	});
+});

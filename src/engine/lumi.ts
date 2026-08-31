@@ -9,6 +9,7 @@ import { auditInvest, recordAudit } from "./integrity";
 import { runSweep } from "./guardian";
 import { research, scoutMarket } from "./knowledge";
 import { runNewsroom } from "./newsroom";
+import { publishQueued } from "./publisher";
 import { runStudy } from "./training";
 import { reward } from "./token";
 import { ensureAetherWallet } from "./wallet";
@@ -390,6 +391,17 @@ export async function lumiPulse(db: D1Database, env?: unknown): Promise<PulseRes
 	const news = await runNewsroom(db, env, 3).catch((e) => ({ drafted: 0, skipped: 0, posts: [], note: `newsroom failed: ${String(e).slice(0, 120)}` }));
 	decisions.push(news.drafted > 0 ? `drafted ${news.drafted} post(s) from real events: ${news.posts.map((p) => p.platform).join(", ")}` : news.note);
 	if (news.drafted > 0) await awardXp(db, "empathy", 4 * news.drafted, "Newsroom drafts");
+
+	// Auto-publish approved-and-queued posts to LIVE connectors — but only if
+	// the `publish` scope is granted. Without it, this is a no-op and the queue
+	// waits for the creator. Nothing is ever faked: `posted` means a real post.
+	const shipped = await publishQueued(db, env, 3).catch((e) => ({ published: 0, attempted: 0, skipped: `auto-publish failed: ${String(e).slice(0, 100)}`, posts: [] }));
+	if (shipped.published > 0) {
+		decisions.push(`published ${shipped.published} queued post(s) to live connectors`);
+		await awardXp(db, "empathy", 6 * shipped.published, "Published posts");
+	} else if (shipped.attempted > 0) {
+		decisions.push(`held ${shipped.attempted} queued post(s) — ${shipped.posts.map((p) => p.note).join("; ").slice(0, 90)}`);
+	}
 
 	// Progress the quest line.
 	const questsCompleted = await checkQuests(db);

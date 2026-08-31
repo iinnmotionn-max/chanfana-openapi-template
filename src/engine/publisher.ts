@@ -89,3 +89,73 @@ export async function deliver(platform: string, text: string, env: unknown): Pro
 	}
 	return adapter(text, env);
 }
+
+// ---- Unattended publishing: the `publish` authority scope, made real ----
+//
+// The publish scope was scored by Shield but enforced nothing. This is what it
+// grants: on the hourly pulse, Lumi may send the creator's QUEUED posts to live
+// connectors. Three locks, all required:
+//
+//   1. The `publish` scope is granted (default: revoked).
+//   2. The post is 'queued' — the creator marked it ready to go. Drafts are
+//      never auto-published; a human approves each one by queuing it.
+//   3. The platform's connector is live (its *_TOKEN is set and connected).
+//
+// A post that cannot go out stays queued and is reported. `posted` never lies.
+
+export interface AutoPublishResult {
+	published: number;
+	attempted: number;
+	skipped: string;
+	posts: { id: number; platform: string; posted: boolean; note: string }[];
+}
+
+export async function publishQueued(db: D1Database, env: unknown, max = 3): Promise<AutoPublishResult> {
+	// Lock 1: the scope. Without it, this is a no-op — Lumi publishes nothing
+	// unattended, exactly like every other guarded power.
+	const grant = await db.prepare("SELECT granted FROM authority WHERE scope = 'publish'").first<{ granted: number }>();
+	if (grant?.granted !== 1) {
+		return { published: 0, attempted: 0, skipped: "publish scope not granted — queued posts wait for review", posts: [] };
+	}
+
+	// Lock 2: only queued posts, oldest first.
+	const queued = (
+		await db
+			.prepare("SELECT p.id, p.platform, p.title, p.body, c.status AS connector_status FROM posts p LEFT JOIN connectors c ON c.platform = p.platform WHERE p.status = 'queued' ORDER BY p.id LIMIT ?")
+			.bind(max)
+			.all<{ id: number; platform: string; title: string; body: string; connector_status: string | null }>()
+	).results;
+
+	const posts: AutoPublishResult["posts"] = [];
+	let published = 0;
+
+	for (const q of queued) {
+		// Lock 3: a live connector, or it stays queued and says why. "Live" =
+		// the platform's token is set AND the connector row is connected.
+		const live = envStr(env, `${q.platform.toUpperCase()}_TOKEN`) !== null && q.connector_status === "connected";
+		if (!live) {
+			posts.push({ id: q.id, platform: q.platform, posted: false, note: `${q.platform} connector not live — kept queued` });
+			continue;
+		}
+		const d = await deliver(q.platform, q.body || q.title, env);
+		if (d.posted) {
+			await db.prepare("UPDATE posts SET status = 'published' WHERE id = ?").bind(q.id).run();
+			published++;
+		}
+		posts.push({ id: q.id, platform: q.platform, posted: d.posted, note: d.detail });
+	}
+
+	if (published > 0) {
+		await db
+			.prepare("INSERT INTO reports (author, kind, title, body, data, realm) VALUES ('growth', 'content', ?, ?, ?, 'growth')")
+			.bind(`Auto-published ${published} post(s)`, posts.filter((p) => p.posted).map((p) => `${p.platform}: ${p.note}`).join("\n"), JSON.stringify(posts))
+			.run();
+	}
+
+	return {
+		published,
+		attempted: queued.length,
+		skipped: queued.length === 0 ? "no queued posts" : "",
+		posts,
+	};
+}
