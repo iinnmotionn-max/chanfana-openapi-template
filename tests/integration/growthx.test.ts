@@ -49,9 +49,10 @@ describe("Growth v2 — connectors, deals, analytics", () => {
 		const id = draft.body.result.id;
 		const pub = await post(`/growth/post/${id}/publish`);
 		expect(pub.status).toBe(200);
-		expect(pub.body.result.status).toBe("published");
-		// No X_TOKEN in the test env → local, not a real post.
+		// No X_TOKEN in the test env → nothing actually went out. A post that did
+		// not go out is READY, never "published" — that word means a real post.
 		expect(pub.body.result.posted).toBe(false);
+		expect(pub.body.result.status).toBe("ready");
 		expect(pub.body.result.note).toContain("X_TOKEN");
 
 		const missing = await post("/growth/post/99999/publish");

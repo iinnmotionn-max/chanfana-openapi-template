@@ -7,6 +7,8 @@
 // marked published LOCALLY and the response says exactly that. We never claim
 // a real post without a live connector — same stance as the Sui adapter.
 
+import { deliver } from "./publisher";
+
 export const STAGES = ["prospect", "contacted", "negotiating", "won", "lost"] as const;
 export type Stage = (typeof STAGES)[number];
 
@@ -53,31 +55,31 @@ export async function connect(db: D1Database, platform: string, handle: string):
 
 export async function publishPost(db: D1Database, env: unknown, postId: number): Promise<Record<string, unknown> | TokenError> {
 	const post = await db
-		.prepare("SELECT p.id, p.platform, c.status as connector_status FROM posts p LEFT JOIN connectors c ON c.platform = p.platform WHERE p.id = ?")
+		.prepare("SELECT p.id, p.platform, p.title, p.body, c.status as connector_status FROM posts p LEFT JOIN connectors c ON c.platform = p.platform WHERE p.id = ?")
 		.bind(postId)
-		.first<{ id: number; platform: string; connector_status: string | null }>();
+		.first<{ id: number; platform: string; title: string; body: string; connector_status: string | null }>();
 	if (!post) return { error: "post not found" };
 	const live = envHasCreds(env, post.platform) && post.connector_status === "connected";
 
 	let posted = false;
 	let note: string;
 	if (live) {
-		// This is where a real POST to the platform API goes. It is wrapped so a
-		// network failure (or the sandbox blocking egress) falls back to local
-		// rather than falsely reporting success.
-		try {
-			// await fetch(<platform endpoint>, { ...auth from env... })  // real post
-			posted = true;
-			note = `posted to ${post.platform}`;
-		} catch {
-			posted = false;
-			note = `connector live but post failed — kept local`;
-		}
+		// A REAL request goes out here. `posted` is whatever actually happened —
+		// never assumed. See src/engine/publisher.ts.
+		const d = await deliver(post.platform, post.body || post.title, env);
+		posted = d.posted;
+		note = d.detail;
 	} else {
-		note = `published locally — set ${post.platform.toUpperCase()}_TOKEN and connect ${post.platform} to post for real`;
+		note = `not posted — set ${post.platform.toUpperCase()}_TOKEN and connect ${post.platform} to publish for real. The draft is kept.`;
 	}
-	await db.prepare("UPDATE posts SET status = 'published' WHERE id = ?").bind(postId).run();
-	return { id: post.id, platform: post.platform, status: "published", posted, note };
+
+	// A post is only "published" if it genuinely went out. Otherwise it becomes
+	// "ready" — reviewed and queued for a real connector — never falsely marked
+	// live. This is the difference between Lumi saying a task is done and it
+	// actually being done.
+	const newStatus = posted ? "published" : "ready";
+	await db.prepare("UPDATE posts SET status = ? WHERE id = ?").bind(newStatus, postId).run();
+	return { id: post.id, platform: post.platform, status: newStatus, posted, note };
 }
 
 export async function createDeal(db: D1Database, d: { name: string; partner?: string; value?: number; probability?: number; note?: string }) {
