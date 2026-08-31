@@ -1,0 +1,118 @@
+# Lumi's local agent — giving her hands on your machine
+
+The Worker can't touch your computer. It runs in a Cloudflare sandbox: no
+filesystem, no shell, no OS. So when you tell Lumi *"on my machine: git status"*,
+she **queues** the task — and this small program, which **you** run on your own
+computer, decides whether to actually do it.
+
+Two gates, both must open:
+
+1. **Lumi needs the `machine` grant.** Click it in the command deck. Without it
+   she refuses to queue anything at all.
+2. **This agent must accept the task.** Allowlist, no shell, your confirmation.
+   The machine always holds the veto.
+
+## Setup
+
+**1 — Set the shared secret on the Worker** (your machine, Git Bash):
+
+```bash
+npx wrangler secret put LOCAL_AGENT_SECRET
+# paste a long random string
+npx wrangler deploy
+```
+
+**2 — Put the same secret in your shell**, and start the agent:
+
+```bash
+export LUMI_AGENT_SECRET='the-same-string'
+node agent/lumi-agent.mjs --url https://YOUR-WORKER.workers.dev --workdir .
+```
+
+On Windows PowerShell: `$env:LUMI_AGENT_SECRET='the-same-string'`
+
+**3 — Grant the scope**: open `/dash`, click the **machine** chip in the
+Authority row until it turns green.
+
+**4 — Command her**: type into the Jarvis bar —
+
+```
+on my machine: git status
+```
+
+The agent prints the request, waits for your **y/N**, runs it, and the output
+comes back into the cockpit.
+
+## What it will and won't do
+
+| Rule | Why |
+|---|---|
+| **Allowlist only** — `git`, `npm`, `npx`, `node`, `ls`, `cat`, `echo`, `pwd`, `date`, `wrangler`, `python`… | Anything else is refused and reported as refused. Edit `ALLOW` in the script to widen it. |
+| **No eval flags** — `node -e`, `python -c`, `--eval`, `-p`, `-i` are refused | An allowlist of program *names* is only as strong as the programs on it. `node -e "…"` is arbitrary code execution wearing an approved name, so the flag is refused, not just the program. |
+| **No task runners** — `npm run`, `npm install`, `npx exec`, `yarn test`… are refused | They execute whatever the local project defines, which an allowlist cannot vet. Run the underlying command directly. |
+| **No shell** — commands are spawned directly | `;` `&&` `\|` backticks and redirection can't chain a second command. A task containing them is refused outright. |
+| **Confirmation on every task** | You see it before it runs. `--yes` skips the prompt — only use it when you trust the queue. |
+| **Sandboxed to `--workdir`** | Commands run there, not wherever the agent was launched from. |
+| **60s timeout, 4000-char output cap** | A runaway task can't hang or flood the log. |
+
+## Rotating the secret
+
+If `LOCAL_AGENT_SECRET` ever leaks — pasted in a chat, committed by accident,
+typed on a machine you no longer trust — change it. It costs no downtime,
+because the Worker accepts two secrets during a rotation:
+
+```sh
+npx wrangler secret put LOCAL_AGENT_SECRET_PREVIOUS   # paste the OLD value
+npx wrangler secret put LOCAL_AGENT_SECRET            # paste the NEW value
+```
+
+Both now work. Update `LUMI_AGENT_SECRET` in each shell that runs this agent,
+whenever you get to it — nothing breaks in the meantime. Then close the window:
+
+```sh
+npx wrangler secret delete LOCAL_AGENT_SECRET_PREVIOUS
+```
+
+Every call that arrives on the old secret is recorded with the host that made
+it, so Shield's **Authority** panel tells you either *"3 calls still on the old
+key — update those callers"* or *"nobody has used it in 7 days — safe to
+delete"*. You close the window on evidence, not on hope. And while it stays
+open, it costs posture score: an overlap window is two valid secrets, and a
+rotation you forgot to finish is a rotation you didn't do.
+
+## Who the Worker thinks you are
+
+The agent sends `--host` (default: your machine's hostname) with every poll,
+and the Worker records it. The first machine to connect becomes the baseline;
+if a *different* name later shows up using a valid secret, Shield raises it
+once on the security panel and the cockpit shows it in amber with a **MINE**
+button. Click it and the question is closed for good.
+
+That is worth having — a copied secret otherwise produces traffic identical
+to yours — but be clear about what it is: **the host name is self-reported.**
+Anyone holding your secret can send `--host studio-pc` and look like your
+machine. This helps you notice a stranger who isn't hiding; it stops nobody
+who is. The secret is still the only thing guarding the door.
+
+## Straight talk
+
+**The allowlist is a speed bump, not a sandbox.** A security review of this
+agent found that `node -e`, `python -c`, and `npm run` sailed straight through
+the original allowlist — arbitrary code execution under an approved program
+name. Those are closed now, but the lesson generalizes: any program that can
+evaluate a string or run a project-defined script defeats a name-based
+allowlist. **If you widen `ALLOW`, check whether the program you're adding can
+do that**, and add its eval flag to `EVAL_FLAGS` if so.
+
+The real boundary is the **confirmation prompt** — a human reading each command
+before it runs. `--yes` removes it. Treat that flag as "I trust every task that
+will ever land in this queue."
+
+This is remote execution on your own machine, and no set of rules makes that
+risk-free. Run it on a machine you're willing to have act on these commands, in
+a directory you chose, and read the confirmations. `--yes` removes the last
+human check — think before using it. Stop the agent with **Ctrl+C** and Lumi's
+hands are gone; the queue just sits there until you start it again.
+
+Everything queued, claimed, run, or refused is recorded in the Databank and
+visible in the cockpit.

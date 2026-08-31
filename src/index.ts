@@ -1,11 +1,87 @@
 import { ApiException, fromHono } from "chanfana";
 import { Hono } from "hono";
-import { tasksRouter } from "./endpoints/tasks/router";
 import { ContentfulStatusCode } from "hono/utils/http-status";
-import { DummyEndpoint } from "./endpoints/dummyEndpoint";
+import { AgentsList, ColonySeed } from "./endpoints/colony";
+import { BotCreate, BotsList, BotUpdate } from "./endpoints/bots";
+import { EngineLearn, EngineRun } from "./endpoints/engine";
+import { ReportsList, StrategiesList, TradesList } from "./endpoints/records";
+import { GoalCreate, GoalsList, GoalUpdate } from "./endpoints/goals";
+import { AnalyticsOverview } from "./endpoints/analytics";
+import {
+	GuardianSweep,
+	InvestAudit,
+	RealmsList,
+	TechStatus,
+	WellnessCheckin,
+	WellnessSummary,
+} from "./endpoints/realms";
+import { KnowledgeList, LumiCurriculum, LumiPulse, LumiResearch, LumiScout, LumiStatus, LumiTrain } from "./endpoints/lumi";
+import { AuraBrief, AuraCreate, AuraList } from "./endpoints/auras";
+import { RiskConfig, RiskHalt, RiskResume, RiskStatusEndpoint } from "./endpoints/risk";
+import { MarketFeed, MarketList } from "./endpoints/market";
+import {
+	AetherAudit,
+	AetherChain,
+	AetherLedger,
+	AetherOverview,
+	AetherReward,
+	AetherSpend,
+	AetherTransfer,
+} from "./endpoints/aether";
+import { ShieldKyc, ShieldScan, ShieldStatus } from "./endpoints/shield";
+import { IntegrityProbe, IntegrityScan, IntegrityStatus, ReadinessStatus } from "./endpoints/integrity";
+import { BridgeCallers, BridgeTrust } from "./endpoints/bridges";
+import { ObsidianExport, ObsidianManifest } from "./endpoints/obsidian";
+import { NewsroomRunNow, NewsroomStatus } from "./endpoints/newsroom";
+import { watchIntegrity } from "./engine/appintegrity";
+import { setSelfHandler } from "./engine/selfref";
+import { recordRun } from "./engine/automation";
+import { AetherWallet, WalletCreate, WalletGet, WalletLink, WalletList, WalletSend } from "./endpoints/wallet";
+import {
+	DefiAddLiquidity,
+	DefiBorrow,
+	DefiOverview,
+	DefiRemoveLiquidity,
+	DefiRepay,
+	DefiSwap,
+	DefiVaultDeposit,
+	DefiVaultWithdraw,
+} from "./endpoints/defi";
+import {
+	GrowthCampaign,
+	GrowthDraft,
+	GrowthLead,
+	GrowthLeads,
+	GrowthOverview,
+	GrowthPostStatus,
+	GrowthPosts,
+	GrowthScout,
+} from "./endpoints/growth";
+import {
+	ConnectorConnect,
+	ConnectorsList,
+	DealAdvance,
+	DealCreate,
+	DealsList,
+	GrowthAnalytics,
+	PostPublish,
+} from "./endpoints/growthx";
+import { RpGrant, RpPlayer, RpSpend } from "./endpoints/rp";
+import { OrchestratorCouncil, OrchestratorDispatch, OrchestratorStatus } from "./endpoints/orchestrator";
+import { AuthorityGrant, CommandSpeak, CommandStatus } from "./endpoints/command";
+import { LocalNext, LocalResult, LocalStatus } from "./endpoints/local";
+import { dashHtml } from "./dash";
 
 // Start a Hono app
 const app = new Hono<{ Bindings: Env }>();
+
+// Runs for every route. Setting the header AFTER `await next()` guarantees it
+// lands on the final response, so live API + dashboard are never served stale.
+app.use("*", async (c, next) => {
+	await next();
+	// Live data + dashboard must never be served stale from a cache.
+	c.header("Cache-Control", "no-store, must-revalidate");
+});
 
 app.onError((err, c) => {
 	if (err instanceof ApiException) {
@@ -28,23 +104,204 @@ app.onError((err, c) => {
 	);
 });
 
+// Lumi — the creator dashboard (plain HTML, outside the OpenAPI registry)
+app.get("/dash", (c) => c.html(dashHtml));
+
 // Setup OpenAPI registry
 const openapi = fromHono(app, {
 	docs_url: "/",
 	schema: {
 		info: {
-			title: "My Awesome API",
-			version: "2.0.0",
-			description: "This is the documentation for my awesome API.",
+			title: "Lumi Colony API",
+			version: "1.0.0",
+			description:
+				"Reg's API for the Lumi colony: a self-improving paper-trading system. " +
+				"Seed the colony, run cycles, let the Observer learn from every trade. Dashboard at /dash.",
 		},
 	},
 });
 
-// Register Tasks Sub router
-openapi.route("/tasks", tasksRouter);
+// Colony
+openapi.post("/colony/seed", ColonySeed);
+openapi.get("/agents", AgentsList);
 
-// Register other endpoints
-openapi.post("/dummy/:slug", DummyEndpoint);
+// Bots & strategies
+openapi.get("/bots", BotsList);
+openapi.post("/bots", BotCreate);
+openapi.patch("/bots/:id", BotUpdate);
+openapi.get("/strategies", StrategiesList);
 
-// Export the Hono app
-export default app;
+// Engine
+openapi.post("/engine/run", EngineRun);
+openapi.post("/engine/learn", EngineLearn);
+
+// Databank reads
+openapi.get("/trades", TradesList);
+openapi.get("/reports", ReportsList);
+
+// Goals
+openapi.get("/goals", GoalsList);
+openapi.post("/goals", GoalCreate);
+openapi.patch("/goals/:id", GoalUpdate);
+
+// Lumi herself: profile, quests, pulse, and expeditions into the world
+openapi.get("/lumi", LumiStatus);
+openapi.post("/lumi/pulse", LumiPulse);
+openapi.post("/lumi/research", LumiResearch);
+openapi.post("/lumi/scout", LumiScout);
+openapi.get("/knowledge", KnowledgeList);
+
+// Training — Lumi & Aether study the Invest trading curriculum
+openapi.post("/lumi/train", LumiTrain);
+openapi.get("/lumi/curriculum", LumiCurriculum);
+
+// Aura layer: personality + design profiles (consent-gated, never the creator)
+openapi.get("/auras", AuraList);
+openapi.post("/auras", AuraCreate);
+openapi.get("/auras/:id/brief", AuraBrief);
+
+// Realms — Lumi's domains (Invest/Aether · Guardian · Tech · Wellness · Shield · Growth)
+openapi.get("/realms", RealmsList);
+openapi.post("/realms/invest/audit", InvestAudit);
+openapi.post("/realms/guardian/sweep", GuardianSweep);
+openapi.get("/realms/tech/status", TechStatus);
+openapi.get("/realms/wellness", WellnessSummary);
+openapi.post("/realms/wellness/checkin", WellnessCheckin);
+
+// Risk gates for capital — drawdown/exposure limits + global halt
+openapi.get("/risk", RiskStatusEndpoint);
+openapi.post("/risk/halt", RiskHalt);
+openapi.post("/risk/resume", RiskResume);
+openapi.patch("/risk/config", RiskConfig);
+
+// Market feed — switch a symbol between the sim tape and the live feed
+openapi.get("/market", MarketList);
+openapi.post("/market/feed", MarketFeed);
+
+// Aether token — the AI-credit ledger (Sui-style tokenomics)
+openapi.get("/aether", AetherOverview);
+openapi.get("/aether/ledger", AetherLedger);
+openapi.get("/aether/chain", AetherChain);
+openapi.post("/aether/transfer", AetherTransfer);
+openapi.post("/aether/reward", AetherReward);
+openapi.post("/aether/spend", AetherSpend);
+openapi.post("/aether/audit", AetherAudit);
+
+// Wallet — an in-app web3 wallet over the AETHER ledger
+openapi.get("/wallet", WalletList);
+openapi.post("/wallet/aether", AetherWallet);
+openapi.post("/wallet", WalletCreate);
+openapi.get("/wallet/:ref", WalletGet);
+openapi.post("/wallet/send", WalletSend);
+openapi.post("/wallet/link", WalletLink);
+
+// DeFi — AETHER liquidity pool, vaults, lending (under the Aether realm)
+openapi.get("/defi", DefiOverview);
+openapi.post("/defi/pool/add", DefiAddLiquidity);
+openapi.post("/defi/pool/remove", DefiRemoveLiquidity);
+openapi.post("/defi/swap", DefiSwap);
+openapi.post("/defi/vault/deposit", DefiVaultDeposit);
+openapi.post("/defi/vault/withdraw", DefiVaultWithdraw);
+openapi.post("/defi/borrow", DefiBorrow);
+openapi.post("/defi/repay", DefiRepay);
+
+// Shield — web3 security, red-team, decentralization, privacy-first KYC
+openapi.get("/shield", ShieldStatus);
+openapi.post("/shield/scan", ShieldScan);
+openapi.post("/shield/kyc", ShieldKyc);
+
+// App integrity — structural self-check: does the code still agree with the DB?
+openapi.get("/integrity", IntegrityStatus);
+openapi.post("/integrity/scan", IntegrityScan);
+openapi.post("/integrity/probe", IntegrityProbe);
+openapi.get("/ready", ReadinessStatus);
+
+// Obsidian — Lumi's records as a linked markdown vault you can keep
+openapi.get("/obsidian", ObsidianManifest);
+openapi.get("/obsidian/export", ObsidianExport);
+
+// Bridge callers — who walks through the inbound doors, and who you vouch for
+openapi.get("/bridges", BridgeCallers);
+openapi.post("/bridges/trust", BridgeTrust);
+
+// Growth — PR, content drafting, campaigns, and lead-gen
+openapi.get("/growth", GrowthOverview);
+openapi.post("/growth/post", GrowthDraft);
+openapi.patch("/growth/post/:id", GrowthPostStatus);
+openapi.get("/growth/posts", GrowthPosts);
+openapi.post("/growth/campaign", GrowthCampaign);
+openapi.post("/growth/lead", GrowthLead);
+openapi.get("/growth/leads", GrowthLeads);
+openapi.post("/growth/scout", GrowthScout);
+
+// Newsroom — hourly drafts from what actually happened
+openapi.get("/growth/newsroom", NewsroomStatus);
+openapi.post("/growth/newsroom", NewsroomRunNow);
+// Growth v2 — connectors (real publishing), deals pipeline, analytics
+openapi.get("/growth/connectors", ConnectorsList);
+openapi.post("/growth/connect", ConnectorConnect);
+openapi.post("/growth/post/:id/publish", PostPublish);
+openapi.get("/growth/deals", DealsList);
+openapi.post("/growth/deal", DealCreate);
+openapi.patch("/growth/deal/:id", DealAdvance);
+openapi.get("/growth/analytics", GrowthAnalytics);
+
+// InMotion RP — bridge the Roblox roleplay city to the AETHER economy
+openapi.post("/rp/grant", RpGrant);
+openapi.post("/rp/spend", RpSpend);
+openapi.get("/rp/player/:userId", RpPlayer);
+
+// Orchestrator — Lumi commands every agent & model (Jarvis-style)
+openapi.get("/orchestrator", OrchestratorStatus);
+openapi.post("/orchestrator/dispatch", OrchestratorDispatch);
+openapi.post("/orchestrator/council", OrchestratorCouncil);
+
+// Total Command — one bar, all control, behind the authority ledger
+openapi.get("/command", CommandStatus);
+openapi.post("/command", CommandSpeak);
+openapi.patch("/command/authority", AuthorityGrant);
+
+// Local agent — the bridge to the creator's own machine (secret-gated)
+openapi.get("/local", LocalStatus);
+openapi.post("/local/next", LocalNext);
+openapi.post("/local/result", LocalResult);
+
+// Analytics (feeds the cockpit)
+openapi.get("/analytics/overview", AnalyticsOverview);
+
+// Scheduled autonomy: on a Cron Trigger firing, Lumi pulses herself —
+// trades, learns, audits, sweeps, pursues her initiative — unattended.
+import { lumiPulse } from "./engine/lumi";
+
+// Hand the router to the guard probe so the system can attack itself
+// through the real request path (see engine/selfref.ts).
+setSelfHandler(async (req, env) => app.fetch(req, env as never));
+
+export default {
+	fetch: app.fetch,
+	async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+		// The hourly heartbeat: Lumi pulses, and the app checks its own
+		// structure. The integrity watch runs even if the pulse throws — a
+		// broken engine is exactly when you want to know the wiring drifted.
+		// Each half records itself, so a cron that stops firing becomes a
+		// measurable GAP rather than numbers that quietly go stale.
+		ctx.waitUntil(
+			(async () => {
+				const t0 = Date.now();
+				const [pulse, integrity] = await Promise.allSettled([lumiPulse(env.DB, env), watchIntegrity(env.DB, env)]);
+				const ok = pulse.status === "fulfilled";
+				await recordRun(
+					env.DB,
+					"pulse",
+					"cron",
+					ok,
+					ok ? `${pulse.value.decisions.length} decisions` : `pulse threw: ${String(pulse.reason).slice(0, 200)}`,
+					Date.now() - t0,
+				).catch(() => {});
+				if (integrity.status === "fulfilled") {
+					await recordRun(env.DB, "integrity", "cron", integrity.value.ok, integrity.value.note, 0).catch(() => {});
+				}
+			})(),
+		);
+	},
+};

@@ -16,6 +16,7 @@
 		"publish": true
 	},
 	"dependencies": {
+		"@anthropic-ai/sdk": "^0.114.0",
 		"chanfana": "2.8.3",
 		"hono": "4.11.1",
 		"zod": "3.25.67"

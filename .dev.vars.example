@@ -1,0 +1,80 @@
+# Local dev secrets for `wrangler dev`. Copy to `.dev.vars` and fill in what
+# you want live locally — `.dev.vars` is gitignored, this example is not.
+#
+#     cp .dev.vars.example .dev.vars
+#
+# Every one of these is OPTIONAL. Leave a line out and that integration
+# reports itself honestly offline instead of pretending to work.
+#
+# In production these are Worker secrets, not this file:
+#     npx wrangler secret put ANTHROPIC_API_KEY
+
+# --- The control-plane lock (set this before you deploy) ---
+# The authority ledger says what Lumi MAY do. This key says who may ask her.
+# Without it, NOBODY — including you — can grant spend / publish / command /
+# machine, or issue an order that needs one. Reading, trading, auditing and
+# sweeping stay open, so the cockpit works out of the box.
+#
+# It matters most the moment you deploy: a Worker URL is not a secret, and
+# without this key anyone who finds yours could grant themselves the machine
+# scope and queue commands for your computer.
+#
+#     npx wrangler secret put CREATOR_KEY
+#
+# The cockpit asks for it with the 🔑 button and keeps it in that browser tab
+# only (sessionStorage) — never on disk, never in the Databank.
+CREATOR_KEY=choose-a-long-random-string
+
+# --- Models Lumi commands (Orchestrator) ---
+# Claude, for counsel and the council. https://console.claude.com
+ANTHROPIC_API_KEY=sk-ant-...
+# Open models via the Hugging Face Inference router.
+HF_TOKEN=hf_...
+
+# --- Lumi's hands on your machine (Local Agent) ---
+# Any long random string. The SAME value must be in your shell as
+# LUMI_AGENT_SECRET when you run: node agent/lumi-agent.mjs
+LOCAL_AGENT_SECRET=choose-a-long-random-string
+
+# --- InMotion RP (Roblox city bridge) ---
+# Same value goes in a ServerStorage StringValue named RP_SHARED_SECRET.
+RP_SHARED_SECRET=choose-another-long-random-string
+
+# --- Rotating a bridge secret (no downtime) ---
+# Either bridge above accepts TWO secrets at once, so you can change one
+# without breaking the callers that still hold the old value:
+#
+#   1. Move the old value to <NAME>_PREVIOUS
+#   2. Put the new value in <NAME>
+#   3. Update your agents / game servers at your own pace
+#   4. Delete <NAME>_PREVIOUS
+#
+# Every call that comes in on the _PREVIOUS secret is recorded, and Shield's
+# Authority dimension tells you whether anyone still depends on it — so step 4
+# is a decision you can make from evidence instead of guessing. Leaving the
+# window open costs posture score on purpose: it is two valid secrets.
+#
+# In production the same thing, as Worker secrets:
+#     npx wrangler secret put RP_SHARED_SECRET_PREVIOUS   # paste the OLD value
+#     npx wrangler secret put RP_SHARED_SECRET            # paste the NEW value
+#     npx wrangler secret delete RP_SHARED_SECRET_PREVIOUS  # once nobody uses it
+#
+# LOCAL_AGENT_SECRET_PREVIOUS=the-old-value-during-a-rotation
+# RP_SHARED_SECRET_PREVIOUS=the-old-value-during-a-rotation
+
+# --- Growth connectors (real publishing) ---
+# Without these, posts stay local drafts and say so.
+X_TOKEN=
+LINKEDIN_TOKEN=
+
+# --- Obsidian (optional, and honest about what it is) ---
+# Your vault id. This is a LOCAL identifier, not a credential: no server can
+# write into your vault because it knows one, and Sync/Publish need their own
+# account. Setting this only STAMPS exported notes with the vault they belong
+# to. GET /obsidian/export works with or without it — you copy the files in.
+OBSIDIAN_VAULT_ID=
+
+# --- AETHER on Sui (set by sui/publish.sh after you publish) ---
+AETHER_PACKAGE_ID=
+AETHER_TREASURY_CAP=
+SUI_NETWORK=testnet

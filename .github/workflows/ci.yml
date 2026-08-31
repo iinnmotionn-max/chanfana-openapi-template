@@ -1,0 +1,22 @@
+# Continuous integration: typecheck + full test suite on every push and PR.
+# No secrets, no deploy — just proves the branch is green.
+
+name: CI
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test

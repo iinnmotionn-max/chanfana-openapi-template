@@ -6,6 +6,10 @@
 	"observability": {
 		"enabled": true
 	},
+	// Scheduled autonomy: Lumi pulses herself every hour when deployed.
+	"triggers": {
+		"crons": ["0 * * * *"]
+	},
 	"d1_databases": [
 		{
 			"binding": "DB",
